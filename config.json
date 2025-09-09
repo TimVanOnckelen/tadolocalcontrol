@@ -35,6 +35,5 @@
     "log_level": "list(debug|info|warning|error)?",
     "auto_discover_zones": "bool",
     "schedule_backup": "bool"
-  },
-  "image": "ghcr.io/timvanonckelen/tado-local-control"
+  }
 }
