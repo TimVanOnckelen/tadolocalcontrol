@@ -1,0 +1,29 @@
+homeassistant:
+  base_url: http://homeassistant:8123
+  enabled: true
+  entity_prefix: tado_local
+  homekit_bridge: ''
+  selected_entities:
+  - climate.tado_smart_radiator_thermostat_va3129748224
+  - climate.tado_smart_radiator_thermostat_va0082518784
+  - climate.tado_smart_radiator_thermostat_va3553891584
+  - climate.tado_smart_thermostat_ru3389855232
+  - climate.tado_smart_radiator_thermostat_va1737173760
+  - climate.tado_smart_radiator_thermostat_va3508741376
+  - climate.tado_smart_radiator_thermostat_va0048964352
+  - climate.tado_smart_radiator_thermostat_va0052700416
+  - climate.tado_smart_radiator_thermostat_va3654554880
+  sync_interval: 60
+  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJhMTc5ODYzZjA4OGE0NDdhYjJhNWU2ZWU4YWY4ZDBkMCIsImlhdCI6MTc1NzQzODgxOCwiZXhwIjoyMDcyNzk4ODE4fQ.JBaHGhbSTifO8-se5rWLuhJAQwbtzNSIpRv9tYCgqYE
+  url: http://192.168.1.56:8123
+logging:
+  file: null
+  level: INFO
+tado:
+  bridge_ip: null
+  polling_interval: 30
+  timeout: 10
+web:
+  debug: false
+  host: 0.0.0.0
+  port: 8080

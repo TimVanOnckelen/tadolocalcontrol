@@ -1,0 +1,20 @@
+{
+  "name": "Test",
+  "zones": [
+    "climate.tado_smart_radiator_thermostat_va0052700416"
+  ],
+  "days": [
+    "mon"
+  ],
+  "periods": [
+    {
+      "start": "19:09",
+      "end": "23:09",
+      "temperature": 15
+    }
+  ],
+  "enabled": true,
+  "id": "82de313c",
+  "created_at": "2025-09-09T20:59:22.450815",
+  "active": true
+}

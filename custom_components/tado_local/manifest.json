@@ -1,0 +1,16 @@
+{
+  "domain": "tado_local",
+  "name": "Tado Local Control",
+  "codeowners": ["@yourusername"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/yourusername/tado-local-control",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/yourusername/tado-local-control/issues",
+  "requirements": [
+    "requests>=2.31.0",
+    "netifaces>=0.11.0",
+    "pycryptodome>=3.18.0"
+  ],
+  "version": "1.0.0"
+}

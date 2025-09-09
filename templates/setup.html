@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tado Local Control - Setup</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .setup-container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            max-width: 500px;
+            width: 100%;
+            padding: 40px;
+        }
+        
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .logo h1 {
+            color: #333;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+        
+        .logo p {
+            color: #666;
+            font-size: 16px;
+        }
+        
+        .setup-form {
+            display: none;
+        }
+        
+        .setup-form.active {
+            display: block;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+        
+        input[type="text"], input[type="url"], input[type="password"], select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            margin-top: 10px;
+        }
+        
+        .status {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .connection-test {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        
+        .connection-test h4 {
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
+        .test-result {
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        
+        .step-indicator {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 30px;
+        }
+        
+        .step {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #dee2e6;
+            margin: 0 5px;
+            transition: background 0.3s;
+        }
+        
+        .step.active {
+            background: #667eea;
+        }
+        
+        .step.completed {
+            background: #28a745;
+        }
+    </style>
+</head>
+<body>
+    <div class="setup-container">
+        <div class="logo">
+            <h1>🏠 Tado Local Control</h1>
+            <p>Setup your Home Assistant connection</p>
+        </div>
+        
+        <div class="step-indicator">
+            <div class="step active" id="step1"></div>
+            <div class="step" id="step2"></div>
+            <div class="step" id="step3"></div>
+            <div class="step" id="step4"></div>
+        </div>
+        
+        <div id="status" class="status"></div>
+        
+        <!-- Step 1: Home Assistant Connection -->
+        <form id="ha-form" class="setup-form active">
+            <h3>Home Assistant Connection</h3>
+            <div class="form-group">
+                <label for="ha-url">Home Assistant URL</label>
+                <input type="url" id="ha-url" placeholder="http://homeassistant:8123" required>
+            </div>
+            <div class="form-group">
+                <label for="ha-token">Long-Lived Access Token</label>
+                <input type="password" id="ha-token" placeholder="Enter your HA token" required>
+                <small style="color: #666; font-size: 14px;">
+                    Create this in Home Assistant: Profile → Long-Lived Access Tokens
+                </small>
+            </div>
+            <button type="button" class="btn" onclick="testConnection()">Test Connection</button>
+            <div id="connection-result" class="connection-test" style="display: none;">
+                <h4>Connection Test</h4>
+                <div id="test-status"></div>
+            </div>
+        </form>
+        
+        <!-- Step 2: Away/Home Configuration -->
+        <form id="away-home-form" class="setup-form">
+            <h3>Away/Home Automation</h3>
+            <p style="color: #666; margin-bottom: 20px;">
+                Configure automatic away/home detection to control heating when nobody is home.
+            </p>
+            
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="away-home-enabled" style="margin-right: 10px;">
+                    Enable Away/Home Automation
+                </label>
+                <small style="color: #666; font-size: 14px;">
+                    When enabled, heating will automatically adjust when you're away from home
+                </small>
+            </div>
+            
+            <div id="away-home-config" style="display: none;">
+                <div class="form-group">
+                    <label for="away-home-entity">Away/Home Entity</label>
+                    <select id="away-home-entity">
+                        <option value="">Select entity...</option>
+                    </select>
+                    <small style="color: #666; font-size: 14px;">
+                        Choose an entity that represents when you're home or away
+                    </small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="home-state">Home State</label>
+                    <input type="text" id="home-state" value="home" placeholder="home">
+                    <small style="color: #666; font-size: 14px;">
+                        The state value that means "home"
+                    </small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="away-state">Away State</label>
+                    <input type="text" id="away-state" value="not_home" placeholder="not_home">
+                    <small style="color: #666; font-size: 14px;">
+                        The state value that means "away"
+                    </small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="away-temperature">Away Temperature (°C)</label>
+                    <input type="number" id="away-temperature" value="16" min="5" max="25" step="0.5">
+                    <small style="color: #666; font-size: 14px;">
+                        Temperature to set when away
+                    </small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="away-mode">Away Mode</label>
+                    <select id="away-mode">
+                        <option value="auto">Auto</option>
+                        <option value="heat">Heat</option>
+                        <option value="off">Off</option>
+                    </select>
+                    <small style="color: #666; font-size: 14px;">
+                        HVAC mode to set when away
+                    </small>
+                </div>
+            </div>
+            
+            <button type="button" class="btn" onclick="nextStep(3)">Continue</button>
+            <button type="button" class="btn btn-secondary" onclick="prevStep(1)">Back</button>
+        </form>
+        
+        <!-- Step 3: HomeKit Configuration -->
+        <form id="homekit-form" class="setup-form">
+            <h3>HomeKit Configuration</h3>
+            <div class="form-group">
+                <label for="entity-prefix">Entity Prefix</label>
+                <input type="text" id="entity-prefix" value="tado_local" required>
+                <small style="color: #666; font-size: 14px;">
+                    Prefix for all Tado entities in Home Assistant
+                </small>
+            </div>
+            <div class="form-group">
+                <label for="homekit-bridge">HomeKit Bridge Name</label>
+                <select id="homekit-bridge">
+                    <option value="">Select existing bridge...</option>
+                </select>
+                <small style="color: #666; font-size: 14px;">
+                    Choose which HomeKit bridge to use for Tado devices
+                </small>
+            </div>
+            <button type="button" class="btn" onclick="nextStep(4)">Continue</button>
+            <button type="button" class="btn btn-secondary" onclick="prevStep(2)">Back</button>
+        </form>
+        
+        <!-- Step 4: Select Tado Entities -->
+        <form id="entities-form" class="setup-form">
+            <h3>Select Tado Entities</h3>
+            <p style="color: #666; margin-bottom: 20px;">
+                Choose which Tado climate entities you want to manage with schedules:
+            </p>
+            <div id="entity-selection" style="margin-bottom: 20px;">
+                <div style="text-align: center; padding: 20px; color: #666;">
+                    Loading entities...
+                </div>
+            </div>
+            <button type="button" class="btn" onclick="finishSetup()" id="finish-btn" style="display: none;">Complete Setup</button>
+            <button type="button" class="btn btn-secondary" onclick="prevStep(3)">Back</button>
+        </form>
+    </div>
+
+    <script>
+        let currentStep = 1;
+        let haConfig = {};
+        
+        function showStatus(message, type = 'error') {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+            status.style.display = 'block';
+            
+            if (type === 'success') {
+                setTimeout(() => {
+                    status.style.display = 'none';
+                }, 3000);
+            }
+        }
+        
+        function updateSteps() {
+            for (let i = 1; i <= 4; i++) {
+                const step = document.getElementById(`step${i}`);
+                step.className = 'step';
+                
+                if (i < currentStep) {
+                    step.classList.add('completed');
+                } else if (i === currentStep) {
+                    step.classList.add('active');
+                }
+            }
+        }
+        
+        function nextStep(step) {
+            document.querySelectorAll('.setup-form').forEach(form => {
+                form.classList.remove('active');
+            });
+            
+            currentStep = step;
+            document.querySelector(`#${getFormId(step)}`).classList.add('active');
+            updateSteps();
+        }
+        
+        function prevStep(step) {
+            nextStep(step);
+        }
+        
+        function getFormId(step) {
+            const forms = ['ha-form', 'away-home-form', 'homekit-form', 'entities-form'];
+            return forms[step - 1];
+        }
+        
+        async function testConnection() {
+            const url = document.getElementById('ha-url').value;
+            const token = document.getElementById('ha-token').value;
+            
+            if (!url || !token) {
+                showStatus('Please fill in both URL and token');
+                return;
+            }
+            
+            const resultDiv = document.getElementById('connection-result');
+            const statusDiv = document.getElementById('test-status');
+            
+            resultDiv.style.display = 'block';
+            statusDiv.innerHTML = '<div class="test-result" style="background: #fff3cd; color: #856404;">Testing connection...</div>';
+            
+            try {
+                const response = await fetch('/api/setup/test-ha-connection', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ url, token })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    statusDiv.innerHTML = `
+                        <div class="test-result" style="background: #d4edda; color: #155724;">
+                            ✅ Connection successful!<br>
+                            Home Assistant version: ${result.version}<br>
+                            Available entities: ${result.entity_count}
+                        </div>
+                    `;
+                    
+                    haConfig = { url, token };
+                    
+                    // Load HomeKit bridges
+                    loadHomeKitBridges(result.homekit_bridges || []);
+                    
+                    // Load Tado entities for step 4
+                    loadTadoEntities(url, token);
+                    
+                    // Load away/home entities for step 2
+                    loadAwayHomeEntities(url, token);
+                    
+                    setTimeout(() => nextStep(2), 1500);
+                } else {
+                    statusDiv.innerHTML = `
+                        <div class="test-result" style="background: #f8d7da; color: #721c24;">
+                            ❌ Connection failed: ${result.error}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                statusDiv.innerHTML = `
+                    <div class="test-result" style="background: #f8d7da; color: #721c24;">
+                        ❌ Connection failed: ${error.message}
+                    </div>
+                `;
+            }
+        }
+        
+        function loadHomeKitBridges(bridges) {
+            const select = document.getElementById('homekit-bridge');
+            select.innerHTML = '<option value="">Select existing bridge...</option>';
+            
+            bridges.forEach(bridge => {
+                const option = document.createElement('option');
+                option.value = bridge.entity_id;
+                option.textContent = bridge.name;
+                select.appendChild(option);
+            });
+            
+            if (bridges.length === 0) {
+                select.innerHTML = '<option value="">No HomeKit bridges found</option>';
+            }
+        }
+        
+        async function discoverDevices() {
+            // This function now loads Tado entities from HA
+            const entitySelection = document.getElementById('entity-selection');
+            
+            entitySelection.innerHTML = '<div style="text-align: center; padding: 20px;">🔍 Loading Tado entities...</div>';
+            
+            try {
+                const response = await fetch('/api/setup/get-tado-entities', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ url: haConfig.url, token: haConfig.token })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success && result.entities.length > 0) {
+                    entitySelection.innerHTML = result.entities.map(entity => `
+                        <div style="background: #f8f9fa; padding: 15px; margin: 10px 0; border-radius: 8px; border: 1px solid #dee2e6;">
+                            <label style="display: flex; align-items: center; cursor: pointer;">
+                                <input type="checkbox" value="${entity.entity_id}" style="margin-right: 10px;" checked>
+                                <div>
+                                    <strong>${entity.name}</strong><br>
+                                    <small>Entity ID: ${entity.entity_id}</small><br>
+                                    <small>Current: ${entity.current_temperature || 'N/A'}°C | Target: ${entity.temperature || 'N/A'}°C</small>
+                                </div>
+                            </label>
+                        </div>
+                    `).join('');
+                    
+                    document.getElementById('finish-btn').style.display = 'block';
+                } else {
+                    entitySelection.innerHTML = `
+                        <div style="text-align: center; padding: 20px; color: #721c24;">
+                            ❌ No Tado entities found in Home Assistant<br>
+                            <small>Make sure your Tado integration is set up in Home Assistant</small>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                entitySelection.innerHTML = `<div style="text-align: center; padding: 20px; color: #721c24;">❌ Error loading entities: ${error.message}</div>`;
+            }
+        }
+        
+        async function loadAwayHomeEntities(url, token) {
+            try {
+                const response = await fetch('/api/away-home/entities', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ url, token })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success && result.entities.length > 0) {
+                    const select = document.getElementById('away-home-entity');
+                    select.innerHTML = '<option value="">Select entity...</option>';
+                    
+                    result.entities.forEach(entity => {
+                        const option = document.createElement('option');
+                        option.value = entity.entity_id;
+                        option.textContent = `${entity.name} (${entity.entity_id}) - Current: ${entity.state}`;
+                        option.dataset.states = JSON.stringify(entity.possible_states);
+                        select.appendChild(option);
+                    });
+                } else {
+                    const select = document.getElementById('away-home-entity');
+                    select.innerHTML = '<option value="">No suitable entities found</option>';
+                }
+            } catch (error) {
+                console.error('Error loading away/home entities:', error);
+            }
+        }
+        
+        // Toggle away/home configuration visibility
+        document.getElementById('away-home-enabled').addEventListener('change', function() {
+            const config = document.getElementById('away-home-config');
+            config.style.display = this.checked ? 'block' : 'none';
+        });
+        
+                // Update home/away states based on selected entity
+        document.getElementById('away-home-entity').addEventListener('change', function() {
+            const option = this.selectedOptions[0];
+            if (option && option.dataset.states) {
+                const states = JSON.parse(option.dataset.states);
+                const entityType = this.value.split('.')[0];
+                
+                // Set default states based on entity type
+                if (entityType === 'person' || entityType === 'device_tracker') {
+                    document.getElementById('home-state').value = 'home';
+                    document.getElementById('away-state').value = 'not_home';
+                } else if (entityType === 'binary_sensor' || entityType === 'input_boolean') {
+                    document.getElementById('home-state').value = 'on';
+                    document.getElementById('away-state').value = 'off';
+                }
+            }
+        });
+        
+        async function loadTadoEntities(url, token) {
+            // Pre-load entities when HA connection is successful
+            setTimeout(discoverDevices, 100);
+        }
+        
+        async function finishSetup() {
+            // Get selected entities
+            const selectedEntities = Array.from(document.querySelectorAll('#entity-selection input[type="checkbox"]:checked'))
+                .map(checkbox => checkbox.value);
+            
+            // Get away/home configuration
+            const awayHomeEnabled = document.getElementById('away-home-enabled').checked;
+            const awayHomeConfig = {
+                enabled: awayHomeEnabled
+            };
+            
+            if (awayHomeEnabled) {
+                awayHomeConfig.entity_id = document.getElementById('away-home-entity').value;
+                awayHomeConfig.home_state = document.getElementById('home-state').value;
+                awayHomeConfig.away_state = document.getElementById('away-state').value;
+                awayHomeConfig.away_temperature = parseFloat(document.getElementById('away-temperature').value);
+                awayHomeConfig.away_mode = document.getElementById('away-mode').value;
+            }
+            
+            const config = {
+                homeassistant: {
+                    url: haConfig.url,
+                    token: haConfig.token,
+                    entity_prefix: document.getElementById('entity-prefix').value,
+                    homekit_bridge: document.getElementById('homekit-bridge').value,
+                    selected_entities: selectedEntities,
+                    away_home: awayHomeConfig
+                }
+            };
+            
+            try {
+                const response = await fetch('/api/setup/save-config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(config)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showStatus('Setup completed successfully! Redirecting...', 'success');
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 2000);
+                } else {
+                    showStatus(`Setup failed: ${result.error}`);
+                }
+            } catch (error) {
+                showStatus(`Setup failed: ${error.message}`);
+            }
+        }
+        
+        // Check if setup is needed on page load
+        window.addEventListener('load', async () => {
+            try {
+                const response = await fetch('/api/setup/status');
+                const result = await response.json();
+                
+                if (result.configured) {
+                    window.location.href = '/';
+                }
+            } catch (error) {
+                console.log('Setup needed');
+            }
+        });
+    </script>
+</body>
+</html>
