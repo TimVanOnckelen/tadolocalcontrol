@@ -23,7 +23,7 @@ RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
 COPY . .
 
 # Set permissions for run script
-RUN chmod a+x /run.sh
+RUN chmod a+x ./run.sh
 
 # Expose port
 EXPOSE 8080
@@ -32,4 +32,4 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8080/api/zones || exit 1
 
-CMD [ "/run.sh" ]
+CMD [ "./run.sh" ]
