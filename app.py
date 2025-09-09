@@ -228,7 +228,19 @@ def deactivate_schedule(schedule_id):
 def discover_devices():
     """Discover Tado devices on local network"""
     try:
-        devices = tado_client.discover_devices()
+        # For now, return devices from Home Assistant
+        if not ha_client:
+            return jsonify({'error': 'Home Assistant not configured'}), 500
+            
+        entities = ha_client.get_tado_entities()
+        devices = []
+        for entity in entities:
+            devices.append({
+                'name': entity.get('attributes', {}).get('friendly_name', entity['entity_id']),
+                'type': 'climate',
+                'entity_id': entity['entity_id']
+            })
+        
         return jsonify(devices)
     except Exception as e:
         logger.error(f"Error discovering devices: {e}")
@@ -461,8 +473,8 @@ def sync_with_homeassistant():
     """Periodic sync with Home Assistant"""
     if ha_client:
         try:
-            zones = tado_client.get_zones()
-            ha_client.sync_zones(zones)
+            # Just log that sync is available - actual syncing handled by HA
+            logger.info("Home Assistant sync available")
         except Exception as e:
             logger.error(f"Error syncing with Home Assistant: {e}")
 

@@ -1,8 +1,9 @@
 {
-  "name": "Tado° Smart Scheduler",
+  "name": "Tado Local Control",
   "version": "1.0.0",
-  "slug": "tado-scheduler",
-  "description": "Advanced scheduling interface for Tado° smart heating devices using Home Assistant automations",
+  "slug": "tado-local-control",
+  "description": "Local control interface for Tado smart heating devices with Home Assistant integration",
+  "url": "https://github.com/TimVanOnckelen/tadolocalcontrol",
   "arch": ["armhf", "armv7", "aarch64", "amd64", "i386"],
   "startup": "application",
   "boot": "auto",
@@ -16,15 +17,15 @@
   "webui": "http://[HOST]:[PORT:8080]",
   "ingress": true,
   "ingress_port": 8080,
-  "panel_icon": "mdi:calendar-clock",
-  "panel_title": "Tado° Scheduler",
+  "panel_icon": "mdi:thermostat",
+  "panel_title": "Tado Local Control",
   "panel_admin": false,
   "hassio_api": true,
   "hassio_role": "default",
   "homeassistant_api": true,
   "host_network": false,
   "options": {
-    "entity_prefix": "tado_scheduler",
+    "entity_prefix": "tado_local",
     "log_level": "info",
     "auto_discover_zones": true,
     "schedule_backup": true
@@ -35,5 +36,5 @@
     "auto_discover_zones": "bool",
     "schedule_backup": "bool"
   },
-  "image": "ghcr.io/yourusername/tado-scheduler"
+  "image": "ghcr.io/timvanonckelen/tado-local-control"
 }
