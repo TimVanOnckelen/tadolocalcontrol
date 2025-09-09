@@ -1,5 +1,4 @@
-import aiohttp
-import asyncio
+import requests
 import logging
 from typing import Dict, List, Any, Optional
 import json
@@ -16,17 +15,6 @@ class HomeAssistantClient:
         self.base_url = (self.ha_config.get('url') or self.ha_config.get('base_url', '')).rstrip('/')
         self.token = self.ha_config.get('token')
         self.entity_prefix = self.ha_config.get('entity_prefix', 'tado_local')
-        self.session = None
-    
-    async def _get_session(self):
-        """Get or create aiohttp session"""
-        if self.session is None:
-            headers = {
-                'Authorization': f'Bearer {self.token}',
-                'Content-Type': 'application/json'
-            }
-            self.session = aiohttp.ClientSession(headers=headers)
-        return self.session
     
     def test_connection(self) -> Dict[str, Any]:
         """Test connection to Home Assistant"""
