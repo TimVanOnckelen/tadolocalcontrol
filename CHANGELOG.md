@@ -8,31 +8,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Initial release of Tado Local Control add-on
-- Mobile-responsive web interface for Tado device control
-- Home Assistant integration for entity discovery
-- Real-time temperature and mode control
-- WebSocket support for live updates
-- Schedule management through Home Assistant
-- Away/Home mode integration
-- API endpoints for automation
-- Configurable logging levels
-- Auto-discovery of Tado zones
+- TBD
 
 ### Changed
-- N/A
+- TBD
 
-### Deprecated
-- N/A
-
-### Removed
-- N/A
+## [1.0.1] - 2025-01-09
 
 ### Fixed
-- N/A
+- Fixed Docker build issues with Python dependencies
+- Removed unused aiohttp dependency that was causing build failures
+- Fixed Dockerfile paths and permissions for add-on container
+- Resolved config file conflicts with Home Assistant add-on structure
+- Updated Python requirements for better compatibility
 
-### Security
-- N/A
+### Changed
+- Moved application config from `config/` to `app_config/` to avoid conflicts
+- Updated homeassistant_client.py to use requests instead of aiohttp
+- Improved Dockerfile with proper error handling and optimizations
+- Updated requirements.txt with compatible versions
 
 ## [1.0.0] - 2025-01-09
 
