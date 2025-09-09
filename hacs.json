@@ -1,0 +1,7 @@
+{
+  "name": "Tado Local Control",
+  "content_in_root": false,
+  "filename": "tado-local-control.zip",
+  "country": "BE",
+  "homeassistant": "2023.1.0"
+}

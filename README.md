@@ -57,12 +57,12 @@ schedule_backup: true
 
 ### Configuration Options
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `entity_prefix` | string | `tado_local` | Prefix for created entities |
-| `log_level` | list | `info` | Log level: `debug`, `info`, `warning`, or `error` |
-| `auto_discover_zones` | boolean | `true` | Automatically discover Tado zones from Home Assistant |
-| `schedule_backup` | boolean | `true` | Enable backup of schedule configurations |
+| Option                | Type    | Default      | Description                                           |
+| --------------------- | ------- | ------------ | ----------------------------------------------------- |
+| `entity_prefix`       | string  | `tado_local` | Prefix for created entities                           |
+| `log_level`           | list    | `info`       | Log level: `debug`, `info`, `warning`, or `error`     |
+| `auto_discover_zones` | boolean | `true`       | Automatically discover Tado zones from Home Assistant |
+| `schedule_backup`     | boolean | `true`       | Enable backup of schedule configurations              |
 
 ## Usage
 
@@ -74,6 +74,7 @@ schedule_backup: true
 ## Features
 
 ### Web Interface
+
 - Clean, mobile-responsive design optimized for phones and tablets
 - Real-time temperature display and control
 - Quick temperature adjustment with +/- buttons
@@ -82,6 +83,7 @@ schedule_backup: true
 - Away/Home mode controls
 
 ### Home Assistant Integration
+
 - Automatic discovery of existing Tado climate entities
 - Real-time updates via WebSocket connection
 - Schedule management through Home Assistant automations
@@ -109,6 +111,7 @@ Check the logs for specific error messages:
 2. Look for error messages during startup
 
 Common issues:
+
 - **Home Assistant API access**: Ensure the add-on has access to the Home Assistant API
 - **Network connectivity**: Verify the add-on can reach your Home Assistant instance
 - **Missing entities**: Make sure you have Tado climate entities in Home Assistant

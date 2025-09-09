@@ -8,14 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+
 - TBD
 
 ### Changed
+
 - TBD
 
 ## [1.0.1] - 2025-01-09
 
 ### Fixed
+
 - Fixed Docker build issues with Python dependencies
 - Removed unused aiohttp dependency that was causing build failures
 - Fixed Dockerfile paths and permissions for add-on container
@@ -23,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated Python requirements for better compatibility
 
 ### Changed
+
 - Moved application config from `config/` to `app_config/` to avoid conflicts
 - Updated homeassistant_client.py to use requests instead of aiohttp
 - Improved Dockerfile with proper error handling and optimizations
@@ -31,4 +35,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.0] - 2025-01-09
 
 ### Added
+
 - Initial release
