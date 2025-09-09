@@ -1,0 +1,21 @@
+# Exclude local development config
+app_config/
+.git/
+.github/
+*.md
+LICENSE
+.gitignore
+.dockerignore
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+
+# Development files
+.vscode/
+.idea/
+*.log

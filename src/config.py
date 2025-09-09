@@ -6,7 +6,13 @@ class Config:
     """Configuration management for Tado Local Control"""
     
     def __init__(self, config_file: str = None):
-        self.config_file = config_file or os.path.join('config', 'config.yaml')
+        # Use /data for add-on persistent storage, fallback to app_config for local development
+        if os.path.exists('/data'):
+            # Running as Home Assistant add-on
+            self.config_file = config_file or os.path.join('/data', 'config', 'config.yaml')
+        else:
+            # Running locally for development
+            self.config_file = config_file or os.path.join('app_config', 'config.yaml')
         self._config = self._load_config()
     
     def _load_config(self) -> Dict[str, Any]:
