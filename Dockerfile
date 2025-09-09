@@ -1,7 +1,7 @@
-ARG BUILD_FROM
+ARG BUILD_FROM=ghcr.io/home-assistant/aarch64-base:latest
 FROM $BUILD_FROM
 
-ENV LANG C.UTF-8
+ENV LANG=C.UTF-8
 
 # Install Python and dependencies
 RUN apk add --no-cache \
@@ -17,13 +17,12 @@ WORKDIR /app
 
 # Copy requirements and install
 COPY requirements.txt .
-RUN pip3 install --no-cache-dir -r requirements.txt
+RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
 
 # Copy application
 COPY . .
 
-# Copy add-on specific files
-COPY hassio-addon/run.sh /
+# Set permissions for run script
 RUN chmod a+x /run.sh
 
 # Expose port
