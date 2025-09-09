@@ -30,6 +30,6 @@ bashio::log.info "Schedule Backup: ${SCHEDULE_BACKUP}"
 # Create config directory if it doesn't exist
 mkdir -p /data/config
 
-# Start the application
+# Start the application with gunicorn for production
 cd /app
-exec python3 app.py
+exec gunicorn --bind 0.0.0.0:8080 --workers 1 --worker-class eventlet --worker-connections 1000 --timeout 120 --keepalive 2 --max-requests 1000 --max-requests-jitter 50 --preload --log-level info app:app

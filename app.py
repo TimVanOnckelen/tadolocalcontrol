@@ -485,8 +485,15 @@ if __name__ == '__main__':
     if ha_client:
         logger.info("Home Assistant integration enabled")
     
-    # Run the app
+    # Run the app with development server
+    logger.info("Running in development mode with Flask dev server")
     socketio.run(app, 
                 host=config.web.get('host', '0.0.0.0'), 
                 port=config.web.get('port', 5000),
-                debug=config.web.get('debug', False))
+                debug=config.web.get('debug', False),
+                allow_unsafe_werkzeug=True)
+
+# For gunicorn deployment
+def create_app():
+    """Factory function for gunicorn"""
+    return app
