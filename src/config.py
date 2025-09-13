@@ -72,7 +72,12 @@ class Config:
     
     def is_configured(self) -> bool:
         """Check if the application is properly configured"""
-        # Check if config file exists and has required settings
+        # If running as Home Assistant add-on, consider it configured if HA credentials are available
+        if os.path.exists('/data/options.json'):
+            ha_config = self.homeassistant
+            return bool(ha_config.get('base_url') and ha_config.get('token'))
+        
+        # For standalone mode, check if config file exists and has required settings
         if not os.path.exists(self.config_file):
             return False
         

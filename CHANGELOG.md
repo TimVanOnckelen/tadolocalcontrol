@@ -15,6 +15,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - TBD
 
+## [1.0.2] - 2025-09-13
+
+### Fixed
+
+- Fixed eventlet monkey patching issues causing runtime errors with gunicorn eventlet workers
+- Fixed Home Assistant add-on configuration detection to prevent unnecessary setup redirects
+- Resolved "Working outside of application context" errors during application startup
+
+### Changed
+
+- Added eventlet.monkey_patch() at the beginning of app.py before other imports
+- Updated Config.is_configured() method to properly handle Home Assistant add-on environment
+- Improved add-on integration to skip setup when running inside Home Assistant
+
 ## [1.0.1] - 2025-01-09
 
 ### Fixed
