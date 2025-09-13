@@ -15,12 +15,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - TBD
 
+## [1.0.4] - 2025-09-13
+
+### Fixed
+
+- Fixed Home Assistant automation template errors with 'dict object has no attribute variables'
+- Completely rewritten automation system to use individual automations per schedule entry
+- Removed complex trigger variables that were causing template errors
+- Simplified automation structure for better Home Assistant compatibility
+
+### Changed
+
+- Changed from single complex automation per zone to individual automations per schedule entry
+- Improved automation naming and organization for better management
+- Enhanced error handling in automation creation process
+
 ## [1.0.3] - 2025-09-13
 
 ### Fixed
 
 - Fixed API URL paths for Home Assistant add-on ingress compatibility
-- Changed all absolute API paths (/api/*) to relative paths (api/*) to work with HA proxy
+- Changed all absolute API paths (/api/_) to relative paths (api/_) to work with HA proxy
 - Improved Socket.IO configuration for Home Assistant add-on environment
 - Added eventlet async mode and unsafe werkzeug support for better compatibility
 

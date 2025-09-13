@@ -360,24 +360,34 @@ class HomeAssistantClient:
                     zone_schedules = [s for s in all_schedules if zone_id in s.get('zones', [])]
                     
                     if zone_schedules:
-                        # Create combined automation for this zone
-                        automation_id = f'{self.entity_prefix}_zone_{self._get_zone_name(zone_id)}'
-                        automation_config = self._build_zone_automation_config(zone_id, zone_schedules)
+                        # Create individual automations for this zone's schedules
+                        zone_automations = self._build_zone_automation_config(zone_id, zone_schedules)
                         
-                        # Delete existing automation for this zone
-                        self._delete_ha_automation(automation_id, headers)
+                        # Delete existing automations for this zone (with old naming pattern)
+                        old_automation_id = f'{self.entity_prefix}_zone_{self._get_zone_name(zone_id)}'
+                        self._delete_ha_automation(old_automation_id, headers)
                         
-                        # Create new combined automation
-                        zone_success = self._create_ha_automation(automation_id, automation_config, headers)
+                        # Create new individual automations
+                        zone_success = True
+                        for automation_id, automation_config in zone_automations:
+                            # Delete existing automation with this ID first
+                            self._delete_ha_automation(automation_id, headers)
+                            
+                            # Create new automation
+                            if not self._create_ha_automation(automation_id, automation_config, headers):
+                                zone_success = False
+                                logger.error(f"Failed to create automation {automation_id}")
+                            else:
+                                logger.info(f"Successfully created automation {automation_id}")
+                        
                         if not zone_success:
                             success = False
-                            logger.error(f"Failed to create automation for zone {zone_id}")
-                        else:
-                            logger.info(f"Successfully created combined automation for zone {zone_id}")
+                            logger.error(f"Failed to create some automations for zone {zone_id}")
                     else:
-                        # No schedules for this zone, delete automation if it exists
-                        automation_id = f'{self.entity_prefix}_zone_{self._get_zone_name(zone_id)}'
-                        self._delete_ha_automation(automation_id, headers)
+                        # No schedules for this zone, delete existing automations
+                        # Try to delete both old and new naming patterns
+                        old_automation_id = f'{self.entity_prefix}_zone_{self._get_zone_name(zone_id)}'
+                        self._delete_ha_automation(old_automation_id, headers)
                         logger.info(f"Removed automation for zone {zone_id} (no schedules)")
                         
                 except Exception as e:
@@ -399,23 +409,18 @@ class HomeAssistantClient:
         clean_name = re.sub(r'[^a-zA-Z0-9_]', '', clean_name)
         return clean_name.lower()
     
-    def _build_zone_automation_config(self, zone_id: str, zone_schedules: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Build Home Assistant automation configuration for a single zone combining all schedules"""
+    def _build_zone_automation_config(self, zone_id: str, zone_schedules: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Build Home Assistant automation configurations for a single zone (one automation per schedule entry)"""
         zone_name = self._get_zone_display_name(zone_id)
-        automation_name = f"Tado Zone: {zone_name}"
+        automations = []
         
         # Get away/home configuration
         away_home_config = self.ha_config.get('away_home', {})
         away_home_enabled = away_home_config.get('enabled', False)
         away_entity_id = away_home_config.get('entity_id')
         home_state = away_home_config.get('home_state', 'home')
-        away_temperature = away_home_config.get('away_temperature', 16.0)
-        away_mode = away_home_config.get('away_mode', 'auto')
         
-        # Collect all triggers from all schedules for this zone
-        triggers = []
-        trigger_id = 0
-        
+        # Create individual automation for each schedule entry
         for schedule in zone_schedules:
             if not schedule.get('active', True):
                 continue  # Skip inactive schedules
@@ -430,173 +435,84 @@ class HomeAssistantClient:
                 time_str = entry.get('time', entry.get('start', '08:00'))
                 temperature = entry.get('temperature', 20.0)
                 
-                # Trigger for entry time
-                triggers.append({
-                    'platform': 'time',
-                    'at': time_str,
-                    'id': f'schedule_{schedule.get("id")}_{i}_start',
-                    'variables': {
-                        'schedule_id': schedule.get('id'),
-                        'schedule_name': schedule_name,
-                        'entry_index': i,
-                        'action_type': 'start',
-                        'temperature': temperature,
-                        'days': schedule_days
-                    }
-                })
-        
-        # Add trigger for away/home state changes if enabled
-        if away_home_enabled and away_entity_id:
-            triggers.append({
-                'platform': 'state',
-                'entity_id': away_entity_id,
-                'id': 'away_home_change',
-                'variables': {
-                    'action_type': 'away_home_change'
+                automation_id = f'{self.entity_prefix}_zone_{self._get_zone_name(zone_id)}_schedule_{schedule.get("id")}_{i}'
+                
+                # Create day condition template
+                days_condition = "true"
+                if schedule_days:
+                    day_list = "', '".join(schedule_days)
+                    days_condition = f"now().strftime('%a').lower() in ['{day_list}']"
+                
+                automation_config = {
+                    'alias': f"Tado Zone: {zone_name} - {schedule_name} #{i+1}",
+                    'description': f'Automated heating schedule for {zone_name} at {time_str}',
+                    'trigger': [
+                        {
+                            'platform': 'time',
+                            'at': time_str
+                        }
+                    ],
+                    'condition': [
+                        {
+                            'condition': 'template',
+                            'value_template': f"{{{{ {days_condition} }}}}"
+                        }
+                    ],
+                    'action': []
                 }
-            })
+                
+                # Add away/home condition if enabled
+                if away_home_enabled and away_entity_id:
+                    automation_config['condition'].append({
+                        'condition': 'state',
+                        'entity_id': away_entity_id,
+                        'state': home_state
+                    })
+                
+                # Add actions based on temperature
+                if str(temperature).lower() == 'off':
+                    # Turn off heating
+                    automation_config['action'] = [
+                        {
+                            'service': 'climate.set_hvac_mode',
+                            'target': {'entity_id': zone_id},
+                            'data': {'hvac_mode': 'off'}
+                        },
+                        {
+                            'service': 'logbook.log',
+                            'data': {
+                                'name': 'Tado Scheduler',
+                                'message': f"Turned off heating for {schedule_name} in {zone_name}"
+                            }
+                        }
+                    ]
+                else:
+                    # Set temperature and heat mode
+                    automation_config['action'] = [
+                        {
+                            'service': 'climate.set_temperature',
+                            'target': {'entity_id': zone_id},
+                            'data': {'temperature': float(temperature)}
+                        },
+                        {
+                            'service': 'climate.set_hvac_mode',
+                            'target': {'entity_id': zone_id},
+                            'data': {'hvac_mode': 'heat'}
+                        },
+                        {
+                            'service': 'logbook.log',
+                            'data': {
+                                'name': 'Tado Scheduler',
+                                'message': f"Started heating {schedule_name} in {zone_name} for {temperature}°C"
+                            }
+                        }
+                    ]
+                
+                automations.append((automation_id, automation_config))
         
-        # Build the main action with day checking and away/home logic
-        actions = [
-            {
-                'choose': [
-                    # Handle scheduled time triggers
-                    {
-                        'conditions': [
-                            {
-                                'condition': 'template',
-                                'value_template': "{{ trigger.id.endswith('_start') }}"
-                            },
-                            {
-                                'condition': 'template',
-                                'value_template': "{{ now().strftime('%a').lower() in trigger.variables.days }}"
-                            }
-                        ] + ([
-                            {
-                                'condition': 'state',
-                                'entity_id': away_entity_id,
-                                'state': home_state
-                            }
-                        ] if away_home_enabled and away_entity_id else []),
-                        'sequence': [
-                            {
-                                'choose': [
-                                    {
-                                        'conditions': [
-                                            {
-                                                'condition': 'template',
-                                                'value_template': "{{ trigger.variables.temperature == 'off' }}"
-                                            }
-                                        ],
-                                        'sequence': [
-                                            {
-                                                'service': 'climate.set_hvac_mode',
-                                                'target': {'entity_id': zone_id},
-                                                'data': {'hvac_mode': 'off'}
-                                            },
-                                            {
-                                                'service': 'logbook.log',
-                                                'data': {
-                                                    'name': 'Tado Scheduler',
-                                                    'message': "Turned off heating for {{ trigger.variables.schedule_name }}"
-                                                }
-                                            }
-                                        ]
-                                    }
-                                ],
-                                'default': [
-                                    {
-                                        'service': 'climate.set_temperature',
-                                        'target': {'entity_id': zone_id},
-                                        'data': {'temperature': "{{ trigger.variables.temperature }}"}
-                                    },
-                                    {
-                                        'service': 'climate.set_hvac_mode',
-                                        'target': {'entity_id': zone_id},
-                                        'data': {'hvac_mode': 'heat'}
-                                    },
-                                    {
-                                        'service': 'logbook.log',
-                                        'data': {
-                                            'name': 'Tado Scheduler',
-                                            'message': "Started heating {{ trigger.variables.schedule_name }} for {{ trigger.variables.temperature }}°C"
-                                        }
-                                    }
-                                ]
-                            }
-                        ]
-                    }
-                ] + ([
-                    # Handle away/home state changes
-                    {
-                        'conditions': [
-                            {
-                                'condition': 'template',
-                                'value_template': "{{ trigger.id == 'away_home_change' }}"
-                            }
-                        ],
-                        'sequence': [
-                            {
-                                'choose': [
-                                    # When going away
-                                    {
-                                        'conditions': [
-                                            {
-                                                'condition': 'template',
-                                                'value_template': f"{{{{ trigger.to_state.state != '{home_state}' }}}}"
-                                            }
-                                        ],
-                                        'sequence': [
-                                            {
-                                                'service': 'climate.set_temperature',
-                                                'target': {'entity_id': zone_id},
-                                                'data': {'temperature': away_temperature}
-                                            },
-                                            {
-                                                'service': 'climate.set_hvac_mode',
-                                                'target': {'entity_id': zone_id},
-                                                'data': {'hvac_mode': away_mode}
-                                            },
-                                            {
-                                                'service': 'logbook.log',
-                                                'data': {
-                                                    'name': 'Tado Scheduler',
-                                                    'message': f"Set away mode for {zone_name} - {away_temperature}°C"
-                                                }
-                                            }
-                                        ]
-                                    }
-                                ],
-                                'default': [
-                                    # When coming home - don't automatically set temperature, let schedules handle it
-                                    {
-                                        'service': 'logbook.log',
-                                        'data': {
-                                            'name': 'Tado Scheduler',
-                                            'message': f"Welcome home! {zone_name} will follow scheduled temperatures."
-                                        }
-                                    }
-                                ]
-                            }
-                        ]
-                    }
-                ] if away_home_enabled and away_entity_id else []),
-                'default': []
-            }
-        ]
-        
-        return {
-            'id': f'{self.entity_prefix}_zone_{self._get_zone_name(zone_id)}',
-            'alias': automation_name,
-            'description': f'Combined heating schedules for {zone_name} - Auto created by Tado Local Control' + 
-                          (' (with away/home automation)' if away_home_enabled else ''),
-            'trigger': triggers,
-            'condition': [],  # All conditions are handled in the actions
-            'action': actions,
-            'mode': 'queued',
-            'max': 20,
-            'labels': ['auto_created', 'tado_local_control']
-        }
+        return automations
+        home_state = away_home_config.get('home_state', 'home')
+        return automations
     
     def _get_zone_display_name(self, zone_id: str) -> str:
         """Get a friendly display name for a zone"""
@@ -850,7 +766,7 @@ class HomeAssistantClient:
                         'entity_id': zone_entity
                     },
                     'data': {
-                        'temperature': "{{ trigger.variables.temperature }}"
+                        'temperature': "{{ temperature }}"
                     }
                 })
                 
