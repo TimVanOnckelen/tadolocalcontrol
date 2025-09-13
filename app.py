@@ -1,3 +1,7 @@
+# This must be the very first import to avoid eventlet monkey patching issues
+import eventlet
+eventlet.monkey_patch()
+
 from flask import Flask, render_template, jsonify, request, redirect
 from flask_socketio import SocketIO, emit
 import asyncio
