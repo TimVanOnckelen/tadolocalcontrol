@@ -3,6 +3,14 @@ import logging
 from typing import Dict, List, Any, Optional
 import json
 
+# Handle both relative and absolute imports
+try:
+    from .schedule_storage import OptimizedScheduleStorage
+    from .smart_automation_manager import SmartAutomationManager
+except ImportError:
+    from schedule_storage import OptimizedScheduleStorage
+    from smart_automation_manager import SmartAutomationManager
+
 logger = logging.getLogger(__name__)
 
 class HomeAssistantClient:
@@ -15,6 +23,21 @@ class HomeAssistantClient:
         self.base_url = (self.ha_config.get('url') or self.ha_config.get('base_url', '')).rstrip('/')
         self.token = self.ha_config.get('token')
         self.entity_prefix = self.ha_config.get('entity_prefix', 'tado_local')
+        
+        # Initialize optimized storage and automation manager
+        self.schedule_storage = OptimizedScheduleStorage()
+        self.automation_manager = SmartAutomationManager(self, self.schedule_storage)
+        
+        # Migrate legacy schedules on first run
+        self._migrate_legacy_schedules()
+    
+    def _migrate_legacy_schedules(self):
+        """Migrate legacy JSON schedules to optimized storage"""
+        try:
+            self.schedule_storage.migrate_from_legacy_storage()
+            logger.info("Legacy schedule migration completed")
+        except Exception as e:
+            logger.error(f"Error during legacy schedule migration: {e}")
     
     def test_connection(self) -> Dict[str, Any]:
         """Test connection to Home Assistant"""
@@ -292,53 +315,73 @@ class HomeAssistantClient:
         return mode_mapping.get(tado_mode.lower(), 'auto')
     
     def get_schedules(self) -> List[Dict[str, Any]]:
-        """Get custom Tado schedules from local storage"""
+        """Get custom Tado schedules from optimized storage"""
         try:
-            return self._load_schedules_from_storage()
+            return self.schedule_storage.get_all_schedules()
         except Exception as e:
             logger.error(f"Error getting schedules: {e}")
             return []
     
     def create_schedule(self, schedule_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Create a new schedule by updating zone automations"""
+        """Create a new schedule using optimized storage and automation management"""
         try:
-            import requests
             import uuid
-            import json
             
             # Generate unique ID for schedule
             schedule_id = str(uuid.uuid4())[:8]
             
             # Prepare schedule data
-            schedule_data['id'] = schedule_id
-            schedule_data['created_at'] = self._get_current_time()
-            schedule_data['active'] = True
+            name = schedule_data.get('name', 'Unnamed Schedule')
+            zones = schedule_data.get('zones', [])
+            days = schedule_data.get('days', [])
             
-            # Save to storage first
-            self._save_schedule_to_storage(schedule_data)
+            # Handle both 'entries' and 'periods' for backward compatibility
+            entries = schedule_data.get('entries', schedule_data.get('periods', []))
             
-            # Update automations for all affected zones
-            success = self._update_zone_automations(schedule_data.get('zones', []))
+            # Create schedule in optimized storage
+            schedule = self.schedule_storage.create_schedule(
+                schedule_id=schedule_id,
+                name=name,
+                zones=zones,
+                entries=entries,
+                days=days,
+                active=True,
+                metadata={
+                    'created_via': 'api',
+                    'version': '2.0'
+                }
+            )
+            
+            # Update automations using smart automation manager
+            success = self.automation_manager.update_zone_automations(zones)
             
             if not success:
-                schedule_data['active'] = False
-                schedule_data['error'] = 'Failed to create/update Home Assistant automations'
+                # Update schedule to mark automation creation failure
+                self.schedule_storage.update_schedule(
+                    schedule_id, 
+                    active=False, 
+                    metadata={'error': 'Failed to create Home Assistant automations'}
+                )
                 logger.warning(f"Zone automation update failed for schedule {schedule_id}")
-                # Re-save with error status
-                self._save_schedule_to_storage(schedule_data)
             else:
-                logger.info(f"Successfully updated zone automations for schedule {schedule_id}")
+                logger.info(f"Successfully created schedule {schedule_id} with consolidated automations")
             
-            return schedule_data
+            return self.schedule_storage.get_schedule(schedule_id)
                 
         except Exception as e:
             logger.error(f"Error creating schedule: {e}")
-            # Even if automation creation fails, save the schedule for manual setup
-            schedule_data['id'] = schedule_id if 'schedule_id' in locals() else str(uuid.uuid4())[:8]
-            schedule_data['active'] = False
-            schedule_data['error'] = str(e)
-            self._save_schedule_to_storage(schedule_data)
-            return schedule_data
+            # Save schedule even if automation creation fails
+            try:
+                if 'schedule_id' in locals():
+                    self.schedule_storage.update_schedule(
+                        schedule_id,
+                        active=False,
+                        metadata={'error': str(e)}
+                    )
+                    return self.schedule_storage.get_schedule(schedule_id)
+            except:
+                pass
+            raise
     
     def _update_zone_automations(self, affected_zones: List[str]) -> bool:
         """Update automations for specific zones by combining all schedules"""
@@ -857,72 +900,77 @@ class HomeAssistantClient:
             return []
     
     def update_schedule(self, schedule_id: str, schedule_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Update existing schedule"""
+        """Update existing schedule using optimized storage"""
         try:
             # Get the old schedule to see which zones were affected
-            old_schedules = self._load_schedules_from_storage()
-            old_schedule = next((s for s in old_schedules if s.get('id') == schedule_id), None)
+            old_schedule = self.schedule_storage.get_schedule(schedule_id)
             old_zones = old_schedule.get('zones', []) if old_schedule else []
             
-            # Add ID and timestamp to data
-            schedule_data['id'] = schedule_id
-            schedule_data['updated_at'] = self._get_current_time()
+            # Update schedule in optimized storage
+            name = schedule_data.get('name', old_schedule.get('name', 'Unnamed') if old_schedule else 'Unnamed')
+            zones = schedule_data.get('zones', [])
+            days = schedule_data.get('days', [])
+            entries = schedule_data.get('entries', schedule_data.get('periods', []))
             
-            # Save updated schedule
-            self._save_schedule_to_storage(schedule_data)
+            updated_schedule = self.schedule_storage.create_schedule(
+                schedule_id=schedule_id,
+                name=name,
+                zones=zones,
+                entries=entries,
+                days=days,
+                active=schedule_data.get('active', True),
+                metadata={
+                    'updated_via': 'api',
+                    'version': '2.0',
+                    'original_created_at': old_schedule.get('created_at') if old_schedule else None
+                }
+            )
             
             # Determine all zones that need automation updates
-            new_zones = schedule_data.get('zones', [])
-            affected_zones = list(set(old_zones + new_zones))
+            affected_zones = list(set(old_zones + zones))
             
-            # Update automations for all affected zones
-            success = self._update_zone_automations(affected_zones)
-            
-            schedule_data['active'] = success
+            # Update automations for all affected zones using smart manager
+            success = self.automation_manager.update_zone_automations(affected_zones)
             
             if not success:
-                schedule_data['error'] = 'Failed to update Home Assistant automations'
+                self.schedule_storage.update_schedule(
+                    schedule_id,
+                    active=False,
+                    metadata={'error': 'Failed to update Home Assistant automations'}
+                )
                 logger.warning(f"Zone automation update failed for schedule {schedule_id}")
             else:
-                logger.info(f"Successfully updated zone automations for schedule {schedule_id}")
+                logger.info(f"Successfully updated schedule {schedule_id} with consolidated automations")
             
-            # Re-save with status
-            self._save_schedule_to_storage(schedule_data)
-            
-            return schedule_data
+            return self.schedule_storage.get_schedule(schedule_id)
             
         except Exception as e:
             logger.error(f"Error updating schedule: {e}")
             raise
     
     def delete_schedule(self, schedule_id: str) -> Dict[str, Any]:
-        """Delete a schedule"""
+        """Delete a schedule using optimized storage"""
         try:
-            import os
-            
             # Get the schedule to see which zones were affected
-            old_schedules = self._load_schedules_from_storage()
-            old_schedule = next((s for s in old_schedules if s.get('id') == schedule_id), None)
+            old_schedule = self.schedule_storage.get_schedule(schedule_id)
             affected_zones = old_schedule.get('zones', []) if old_schedule else []
             
-            # Delete schedule file
-            schedule_file = os.path.join('config', 'schedules', f"{schedule_id}.json")
-            if os.path.exists(schedule_file):
-                os.remove(schedule_file)
-                logger.info(f"Deleted schedule file: {schedule_file}")
+            # Delete schedule from optimized storage
+            deleted = self.schedule_storage.delete_schedule(schedule_id)
             
-            # Update automations for affected zones
-            automation_updated = self._update_zone_automations(affected_zones)
-            
-            if automation_updated:
-                logger.info(f"Successfully updated zone automations after deleting schedule {schedule_id}")
-            else:
-                logger.warning(f"Failed to update zone automations after deleting schedule {schedule_id}")
+            if deleted and affected_zones:
+                # Update automations for affected zones
+                automation_updated = self.automation_manager.update_zone_automations(affected_zones)
+                
+                if automation_updated:
+                    logger.info(f"Successfully updated zone automations after deleting schedule {schedule_id}")
+                else:
+                    logger.warning(f"Failed to update zone automations after deleting schedule {schedule_id}")
             
             return {
-                'success': True, 
-                'message': f'Schedule {schedule_id} deleted',
-                'automation_updated': automation_updated
+                'success': deleted,
+                'message': f'Schedule {schedule_id} deleted' if deleted else f'Schedule {schedule_id} not found',
+                'automation_updated': automation_updated if deleted and affected_zones else True
             }
             
         except Exception as e:
@@ -1030,21 +1078,19 @@ class HomeAssistantClient:
             return []
     
     def activate_schedule(self, schedule_id: str) -> Dict[str, Any]:
-        """Activate a schedule by enabling the zone automations"""
+        """Activate a schedule using optimized storage"""
         try:
             # Get the schedule to find its zones
-            schedules = self._load_schedules_from_storage()
-            schedule = next((s for s in schedules if s.get('id') == schedule_id), None)
+            schedule = self.schedule_storage.get_schedule(schedule_id)
             
             if not schedule:
                 return {'success': False, 'error': 'Schedule not found'}
             
-            # Mark schedule as active and save
-            schedule['active'] = True
-            self._save_schedule_to_storage(schedule)
+            # Mark schedule as active
+            self.schedule_storage.update_schedule(schedule_id, active=True)
             
             # Update automations for the zones
-            success = self._update_zone_automations(schedule.get('zones', []))
+            success = self.automation_manager.update_zone_automations(schedule.get('zones', []))
             
             if success:
                 logger.info(f"Activated schedule {schedule_id}")
@@ -1054,6 +1100,31 @@ class HomeAssistantClient:
                 
         except Exception as e:
             logger.error(f"Error activating schedule: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    def deactivate_schedule(self, schedule_id: str) -> Dict[str, Any]:
+        """Deactivate a schedule using optimized storage"""
+        try:
+            # Get the schedule to find its zones
+            schedule = self.schedule_storage.get_schedule(schedule_id)
+            
+            if not schedule:
+                return {'success': False, 'error': 'Schedule not found'}
+            
+            # Mark schedule as inactive
+            self.schedule_storage.update_schedule(schedule_id, active=False)
+            
+            # Update automations for the zones
+            success = self.automation_manager.update_zone_automations(schedule.get('zones', []))
+            
+            if success:
+                logger.info(f"Deactivated schedule {schedule_id}")
+                return {'success': True, 'message': f'Schedule {schedule_id} deactivated'}
+            else:
+                return {'success': False, 'error': 'Failed to update zone automations'}
+                
+        except Exception as e:
+            logger.error(f"Error deactivating schedule: {e}")
             return {'success': False, 'error': str(e)}
     
     def get_away_home_entities(self) -> List[Dict[str, Any]]:
@@ -1297,3 +1368,46 @@ class HomeAssistantClient:
         except Exception as e:
             logger.error(f"Error deactivating schedule: {e}")
             return {'success': False, 'error': str(e)}
+    
+    # New optimized methods
+    def get_optimization_stats(self) -> Dict[str, Any]:
+        """Get statistics about the optimization improvements"""
+        try:
+            return self.automation_manager.get_consolidation_stats()
+        except Exception as e:
+            logger.error(f"Error getting optimization stats: {e}")
+            return {}
+    
+    def get_schedule_state_for_zone(self, zone_id: str) -> Dict[str, Any]:
+        """Get what a zone should be doing right now based on active schedules"""
+        try:
+            from datetime import datetime
+            
+            now = datetime.now()
+            day_of_week = now.weekday()  # 0=Monday, 6=Sunday
+            time_minutes = now.hour * 60 + now.minute
+            
+            state = self.schedule_storage.get_schedule_state_at_time(zone_id, day_of_week, time_minutes)
+            
+            if state:
+                return {
+                    'has_active_schedule': True,
+                    'target_temperature': state['temperature'],
+                    'target_action': state['action'],
+                    'active_schedule': state['schedule_name'],
+                    'current_time': now.strftime('%H:%M'),
+                    'current_day': now.strftime('%A')
+                }
+            else:
+                return {
+                    'has_active_schedule': False,
+                    'target_temperature': None,
+                    'target_action': 'auto',
+                    'active_schedule': None,
+                    'current_time': now.strftime('%H:%M'),
+                    'current_day': now.strftime('%A')
+                }
+                
+        except Exception as e:
+            logger.error(f"Error getting schedule state for zone {zone_id}: {e}")
+            return {'has_active_schedule': False, 'error': str(e)}

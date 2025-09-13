@@ -233,6 +233,32 @@ def deactivate_schedule(schedule_id):
         logger.error(f"Error deactivating schedule: {e}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/optimization/stats')
+def get_optimization_stats():
+    """Get optimization statistics"""
+    try:
+        if not ha_client:
+            return jsonify({'error': 'Home Assistant not configured'}), 500
+            
+        stats = ha_client.get_optimization_stats()
+        return jsonify(stats)
+    except Exception as e:
+        logger.error(f"Error getting optimization stats: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/zones/<zone_id>/schedule-state')
+def get_zone_schedule_state(zone_id):
+    """Get current schedule state for a zone"""
+    try:
+        if not ha_client:
+            return jsonify({'error': 'Home Assistant not configured'}), 500
+            
+        state = ha_client.get_schedule_state_for_zone(zone_id)
+        return jsonify(state)
+    except Exception as e:
+        logger.error(f"Error getting zone schedule state: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/discovery')
 def discover_devices():
     """Discover Tado devices on local network"""
