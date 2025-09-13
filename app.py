@@ -32,12 +32,21 @@ if RUNNING_IN_HASSIO:
 # Initialize Flask app
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'tado-schedule-control-secret')
+
+# Configure Socket.IO path for Home Assistant ingress compatibility
+socketio_path = '/socket.io/'
+if RUNNING_IN_HASSIO:
+    # When running as Home Assistant add-on, we might need to handle ingress paths
+    # The ingress system will route requests correctly, so we keep the default path
+    pass
+
 socketio = SocketIO(app, 
                    cors_allowed_origins="*", 
                    logger=True, 
                    engineio_logger=True,
                    async_mode='eventlet',
-                   allow_unsafe_werkzeug=True)
+                   allow_unsafe_werkzeug=True,
+                   path=socketio_path)
 
 # Initialize clients
 config = Config()
@@ -55,6 +64,24 @@ def index():
 def setup():
     """Setup interface for first-time configuration"""
     return render_template('setup.html')
+
+@app.route('/api/debug/connection-info')
+def connection_info():
+    """Debug endpoint to help troubleshoot connection issues"""
+    import json
+    return jsonify({
+        'host': request.host,
+        'url': request.url,
+        'base_url': request.base_url,
+        'url_root': request.url_root,
+        'path': request.path,
+        'headers': dict(request.headers),
+        'is_hassio': RUNNING_IN_HASSIO,
+        'environment': {
+            'HA_URL': os.environ.get('HA_URL'),
+            'HA_TOKEN': 'SET' if os.environ.get('HA_TOKEN') else 'NOT_SET'
+        }
+    })
 
 @app.route('/api/zones')
 def get_zones():
@@ -495,13 +522,15 @@ def save_setup_config():
 @socketio.on('connect')
 def handle_connect():
     """Handle WebSocket connection"""
-    logger.info('Client connected')
+    logger.info(f'Client connected from {request.remote_addr}')
+    logger.info(f'Connection headers: {dict(request.headers)}')
+    logger.info(f'Request URL: {request.url}')
     emit('status', {'message': 'Connected to Tado Local Control'})
 
 @socketio.on('disconnect')
 def handle_disconnect():
     """Handle WebSocket disconnection"""
-    logger.info('Client disconnected')
+    logger.info(f'Client disconnected from {request.remote_addr}')
 
 # Background task to sync with Home Assistant
 def sync_with_homeassistant():

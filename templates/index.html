@@ -1780,8 +1780,50 @@
         // Initialize Socket.IO with error handling
         let socket;
         try {
-            // Use current location for Socket.IO connection (Home Assistant ingress compatible)
-            socket = io();
+            // Determine the correct Socket.IO endpoint
+            let socketPath = '/socket.io/';
+            let socketUrl = '';
+            
+            // Check if we're running in Home Assistant ingress
+            const currentPath = window.location.pathname;
+            const isIngress = currentPath.includes('/api/hassio_ingress/');
+            
+            if (isIngress) {
+                // Extract the ingress path for Home Assistant add-on
+                const ingressMatch = currentPath.match(/^(\/api\/hassio_ingress\/[^\/]+)/);
+                if (ingressMatch) {
+                    socketPath = ingressMatch[1] + '/socket.io/';
+                }
+                // Use relative URL for ingress
+                socketUrl = window.location.origin;
+            } else {
+                // For standalone or direct access, use current location
+                socketUrl = window.location.origin;
+            }
+            
+            console.log('Socket.IO connecting to:', socketUrl, 'with path:', socketPath);
+            
+            // Initialize Socket.IO with proper configuration
+            socket = io(socketUrl, {
+                path: socketPath,
+                transports: ['websocket', 'polling'],
+                upgrade: true,
+                rememberUpgrade: true
+            });
+            
+            // Add connection event handlers
+            socket.on('connect', () => {
+                console.log('Socket.IO connected successfully');
+            });
+            
+            socket.on('disconnect', () => {
+                console.log('Socket.IO disconnected');
+            });
+            
+            socket.on('connect_error', (error) => {
+                console.warn('Socket.IO connection error:', error);
+            });
+            
         } catch (error) {
             console.warn('Socket.IO initialization failed:', error);
             // Continue without real-time features
@@ -3338,7 +3380,16 @@
         }
         
         // Load initial data and show schedules tab by default
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Debug connection info
+            try {
+                const debugResponse = await fetch('/api/debug/connection-info');
+                const debugInfo = await debugResponse.json();
+                console.log('Connection debug info:', debugInfo);
+            } catch (error) {
+                console.log('Debug info not available:', error);
+            }
+            
             loadSchedules();
             loadZones();
             loadAwayHomeStatus();
