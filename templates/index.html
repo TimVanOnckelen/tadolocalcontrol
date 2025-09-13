@@ -1780,6 +1780,7 @@
         // Initialize Socket.IO with error handling
         let socket;
         try {
+            // Use current location for Socket.IO connection (Home Assistant ingress compatible)
             socket = io();
         } catch (error) {
             console.warn('Socket.IO initialization failed:', error);
@@ -1992,7 +1993,7 @@
         async function loadSchedules() {
             console.log('loadSchedules called');
             try {
-                const response = await fetch('/api/schedules');
+                const response = await fetch('api/schedules');
                 console.log('API response status:', response.status);
                 if (response.ok) {
                     schedules = await response.json();
@@ -2240,7 +2241,7 @@
         // Load zones on page load
         async function loadZones() {
             try {
-                const response = await fetch('/api/zones');
+                const response = await fetch('api/zones');
                 
                 if (response.ok) {
                     zones = await response.json();
@@ -2301,7 +2302,7 @@
         // Load automations from Home Assistant
         async function loadAutomations() {
             try {
-                const response = await fetch('/api/automations');
+                const response = await fetch('api/automations');
                 if (response.ok) {
                     automations = await response.json();
                     renderAutomations();
@@ -2376,7 +2377,7 @@
                 // Step 2: Save
                 updateLoadingStep(2, 'active');
                 
-                const response = await fetch('/api/schedules', {
+                const response = await fetch('api/schedules', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(scheduleData)
@@ -2494,7 +2495,7 @@
         // Load zones on page load
         async function loadZones() {
             try {
-                const response = await fetch('/api/zones');
+                const response = await fetch('api/zones');
                 
                 if (response.ok) {
                     zones = await response.json();
@@ -2562,7 +2563,7 @@
             if (newTemp < 5 || newTemp > 30) return;
             
             try {
-                const response = await fetch(`/api/zones/${entityId}/temperature`, {
+                const response = await fetch(`api/zones/${entityId}/temperature`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ temperature: newTemp })
@@ -2579,7 +2580,7 @@
         
         async function setMode(entityId, mode) {
             try {
-                const response = await fetch(`/api/zones/${entityId}/mode`, {
+                const response = await fetch(`api/zones/${entityId}/mode`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ mode })
@@ -2881,7 +2882,7 @@
         
         async function loadAwayHomeStatus() {
             try {
-                const response = await fetch('/api/away-home/status');
+                const response = await fetch('api/away-home/status');
                 
                 if (response.ok) {
                     awayHomeStatus = await response.json();
@@ -2980,7 +2981,7 @@
             button.disabled = true;
             
             try {
-                const response = await fetch('/api/away-home/set', {
+                const response = await fetch('api/away-home/set', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
@@ -3017,7 +3018,7 @@
             button.disabled = true;
             
             try {
-                const response = await fetch('/api/away-home/apply-away-mode', {
+                const response = await fetch('api/away-home/apply-away-mode', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' }
                 });
@@ -3065,7 +3066,7 @@
         async function showAwayHomeConfig() {
             try {
                 // Load available entities first
-                const response = await fetch('/api/away-home/entities-current');
+                const response = await fetch('api/away-home/entities-current');
                 const result = await response.json();
                 
                 if (result.success) {
@@ -3082,7 +3083,7 @@
                 }
                 
                 // Load current configuration
-                const statusResponse = await fetch('/api/away-home/status');
+                const statusResponse = await fetch('api/away-home/status');
                 const status = await statusResponse.json();
                 
                 if (status.enabled) {
@@ -3125,7 +3126,7 @@
             }
             
             try {
-                const response = await fetch('/api/away-home/save-config', {
+                const response = await fetch('api/away-home/save-config', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -3174,7 +3175,7 @@
         async function loadAwayHomeEntitiesForConfig() {
             try {
                 // Get current HA config from the page
-                const response = await fetch('/api/away-home/entities', {
+                const response = await fetch('api/away-home/entities', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
@@ -3209,7 +3210,7 @@
         
         async function loadCurrentAwayHomeConfig() {
             try {
-                const response = await fetch('/api/away-home/status');
+                const response = await fetch('api/away-home/status');
                 const status = await response.json();
                 
                 if (status.enabled) {
@@ -3291,7 +3292,7 @@
                     submitBtn.disabled = true;
                     
                     try {
-                        const response = await fetch('/api/setup/save-config', {
+                        const response = await fetch('api/setup/save-config', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(configData)

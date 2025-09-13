@@ -15,6 +15,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - TBD
 
+## [1.0.3] - 2025-09-13
+
+### Fixed
+
+- Fixed API URL paths for Home Assistant add-on ingress compatibility
+- Changed all absolute API paths (/api/*) to relative paths (api/*) to work with HA proxy
+- Improved Socket.IO configuration for Home Assistant add-on environment
+- Added eventlet async mode and unsafe werkzeug support for better compatibility
+
+### Changed
+
+- Updated Socket.IO initialization to be more compatible with Home Assistant ingress
+- Enhanced API routing to work correctly in both standalone and add-on modes
+
 ## [1.0.2] - 2025-09-13
 
 ### Fixed

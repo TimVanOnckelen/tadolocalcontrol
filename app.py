@@ -32,7 +32,12 @@ if RUNNING_IN_HASSIO:
 # Initialize Flask app
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'tado-schedule-control-secret')
-socketio = SocketIO(app, cors_allowed_origins="*", logger=True, engineio_logger=True)
+socketio = SocketIO(app, 
+                   cors_allowed_origins="*", 
+                   logger=True, 
+                   engineio_logger=True,
+                   async_mode='eventlet',
+                   allow_unsafe_werkzeug=True)
 
 # Initialize clients
 config = Config()

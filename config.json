@@ -1,6 +1,6 @@
 {
   "name": "Tado Local Control",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "slug": "tado-local-control",
   "description": "Local control interface for Tado smart heating devices with Home Assistant integration",
   "url": "https://github.com/TimVanOnckelen/tadolocalcontrol",

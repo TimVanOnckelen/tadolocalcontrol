@@ -380,7 +380,7 @@
             statusDiv.innerHTML = '<div class="test-result" style="background: #fff3cd; color: #856404;">Testing connection...</div>';
             
             try {
-                const response = await fetch('/api/setup/test-ha-connection', {
+                const response = await fetch('api/setup/test-ha-connection', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -450,7 +450,7 @@
             entitySelection.innerHTML = '<div style="text-align: center; padding: 20px;">🔍 Loading Tado entities...</div>';
             
             try {
-                const response = await fetch('/api/setup/get-tado-entities', {
+                const response = await fetch('api/setup/get-tado-entities', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -490,7 +490,7 @@
         
         async function loadAwayHomeEntities(url, token) {
             try {
-                const response = await fetch('/api/away-home/entities', {
+                const response = await fetch('api/away-home/entities', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -580,7 +580,7 @@
             };
             
             try {
-                const response = await fetch('/api/setup/save-config', {
+                const response = await fetch('api/setup/save-config', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -606,7 +606,7 @@
         // Check if setup is needed on page load
         window.addEventListener('load', async () => {
             try {
-                const response = await fetch('/api/setup/status');
+                const response = await fetch('api/setup/status');
                 const result = await response.json();
                 
                 if (result.configured) {
