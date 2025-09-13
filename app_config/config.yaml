@@ -1,5 +1,5 @@
 homeassistant:
-  base_url: http://192.168.1.56:8123
+  base_url: http://homeassistant:8123
   enabled: true
   entity_prefix: tado_local
   homekit_bridge: ""
