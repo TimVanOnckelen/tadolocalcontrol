@@ -55,4 +55,15 @@ mkdir -p /data/config
 
 # Start the application with gunicorn for production
 cd /app
-exec gunicorn --bind 0.0.0.0:8080 --workers 1 --worker-class eventlet --worker-connections 1000 --timeout 120 --keepalive 2 --max-requests 1000 --max-requests-jitter 50 --preload --log-level info app:app
+exec gunicorn --bind 0.0.0.0:8080 \
+  --workers 1 \
+  --worker-class eventlet \
+  --worker-connections 1000 \
+  --timeout 120 \
+  --max-requests 1000 \
+  --max-requests-jitter 50 \
+  --preload \
+  --log-level info \
+  --access-logfile - \
+  --error-logfile - \
+  app:app
