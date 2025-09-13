@@ -2768,7 +2768,7 @@
                     // Step 2: Save
                     updateLoadingStep(2, 'active');
                     
-                    const response = await fetch(`/api/schedules/${scheduleId}`, {
+                    const response = await fetch(`api/schedules/${scheduleId}`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(scheduleData)
@@ -2862,7 +2862,7 @@
             deleteBtn.disabled = true;
             
             try {
-                const response = await fetch(`/api/schedules/${scheduleId}`, {
+                const response = await fetch(`api/schedules/${scheduleId}`, {
                     method: 'DELETE'
                 });
                 
@@ -3383,7 +3383,7 @@
         document.addEventListener('DOMContentLoaded', async () => {
             // Debug connection info
             try {
-                const debugResponse = await fetch('/api/debug/connection-info');
+                const debugResponse = await fetch('api/debug/connection-info');
                 const debugInfo = await debugResponse.json();
                 console.log('Connection debug info:', debugInfo);
             } catch (error) {
