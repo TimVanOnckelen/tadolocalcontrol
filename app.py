@@ -96,6 +96,19 @@ def get_zones():
         logger.error(f"Error getting zones: {e}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/rooms')
+def get_rooms():
+    """Get all rooms/areas with Tado devices"""
+    try:
+        if not ha_client:
+            return jsonify({'error': 'Home Assistant not configured'}), 500
+            
+        rooms = ha_client.get_rooms_with_tado_devices()
+        return jsonify(rooms)
+    except Exception as e:
+        logger.error(f"Error getting rooms: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/zones/<entity_id>')
 def get_zone(entity_id):
     """Get specific zone details"""

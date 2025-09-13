@@ -44,6 +44,18 @@ class OptimizedScheduleStorage:
                     )
                 """)
                 
+                # Add new table for room-based schedules
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS schedule_rooms (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        schedule_id TEXT NOT NULL,
+                        room_name TEXT NOT NULL,
+                        area_id TEXT,
+                        FOREIGN KEY (schedule_id) REFERENCES schedules(id) ON DELETE CASCADE,
+                        UNIQUE(schedule_id, room_name)
+                    )
+                """)
+                
                 conn.execute("""
                     CREATE TABLE IF NOT EXISTS schedule_entries (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -58,6 +70,7 @@ class OptimizedScheduleStorage:
                 
                 # Create optimized indexes
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_schedule_zones ON schedule_zones(zone_id, schedule_id)")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_schedule_rooms ON schedule_rooms(room_name, schedule_id)")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_schedule_entries_time ON schedule_entries(day_of_week, time_minutes)")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_schedule_entries_schedule ON schedule_entries(schedule_id)")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_active_schedules ON schedules(active)")
@@ -141,10 +154,11 @@ class OptimizedScheduleStorage:
         
         return entries
     
-    def create_schedule(self, schedule_id: str, name: str, zones: List[str], 
-                       entries: List[Dict[str, Any]], days: List[str],
-                       active: bool = True, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """Create a new schedule with optimized storage"""
+    def create_schedule(self, schedule_id: str, name: str, zones: List[str] = None, 
+                       rooms: List[str] = None, entries: List[Dict[str, Any]] = None, 
+                       days: List[str] = None, active: bool = True, 
+                       metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Create a new schedule with optimized storage - supports both zones and rooms"""
         try:
             with sqlite3.connect(self.db_path) as conn:
                 # Insert schedule
@@ -153,48 +167,66 @@ class OptimizedScheduleStorage:
                     VALUES (?, ?, ?, ?)
                 """, (schedule_id, name, active, json.dumps(metadata or {})))
                 
-                # Clear existing zones and entries
+                # Clear existing zones, rooms, and entries
                 conn.execute("DELETE FROM schedule_zones WHERE schedule_id = ?", (schedule_id,))
+                conn.execute("DELETE FROM schedule_rooms WHERE schedule_id = ?", (schedule_id,))
                 conn.execute("DELETE FROM schedule_entries WHERE schedule_id = ?", (schedule_id,))
                 
-                # Insert zones
-                for zone_id in zones:
-                    conn.execute("""
-                        INSERT INTO schedule_zones (schedule_id, zone_id)
-                        VALUES (?, ?)
-                    """, (schedule_id, zone_id))
+                # Insert zones (for backward compatibility)
+                if zones:
+                    for zone_id in zones:
+                        conn.execute("""
+                            INSERT INTO schedule_zones (schedule_id, zone_id)
+                            VALUES (?, ?)
+                        """, (schedule_id, zone_id))
                 
-                # Insert entries for each day
-                day_mapping = {
-                    'mon': 0, 'tue': 1, 'wed': 2, 'thu': 3, 
-                    'fri': 4, 'sat': 5, 'sun': 6
-                }
-                
-                for day_abbr in days:
-                    day_num = day_mapping.get(day_abbr.lower())
-                    if day_num is None:
-                        continue
-                    
-                    for entry in entries:
-                        time_str = entry.get('time', '08:00')
-                        time_minutes = self._time_str_to_minutes(time_str)
-                        temperature = entry.get('temperature', 20.0)
-                        action = entry.get('action', 'heat')
-                        
-                        if str(temperature).lower() == 'off':
-                            action = 'off'
-                            temperature = None
+                # Insert rooms (new room-based approach)
+                if rooms:
+                    for room_name in rooms:
+                        # Extract area_id if it's in format "room_name|area_id"
+                        area_id = None
+                        if '|' in room_name:
+                            room_name, area_id = room_name.split('|', 1)
                         
                         conn.execute("""
-                            INSERT INTO schedule_entries 
-                            (schedule_id, day_of_week, time_minutes, temperature, action)
-                            VALUES (?, ?, ?, ?, ?)
-                        """, (schedule_id, day_num, time_minutes, temperature, action))
+                            INSERT INTO schedule_rooms (schedule_id, room_name, area_id)
+                            VALUES (?, ?, ?)
+                        """, (schedule_id, room_name, area_id))
+                
+                # Insert entries for each day
+                if entries and days:
+                    day_mapping = {
+                        'mon': 0, 'tue': 1, 'wed': 2, 'thu': 3, 
+                        'fri': 4, 'sat': 5, 'sun': 6
+                    }
+                    
+                    for day_abbr in days:
+                        day_num = day_mapping.get(day_abbr.lower())
+                        if day_num is None:
+                            continue
+                        
+                        for entry in entries:
+                            time_str = entry.get('time', '08:00')
+                            time_minutes = self._time_str_to_minutes(time_str)
+                            temperature = entry.get('temperature', 20.0)
+                            action = entry.get('action', 'heat')
+                            
+                            if str(temperature).lower() == 'off':
+                                action = 'off'
+                                temperature = None
+                            
+                            conn.execute("""
+                                INSERT INTO schedule_entries 
+                                (schedule_id, day_of_week, time_minutes, temperature, action)
+                                VALUES (?, ?, ?, ?, ?)
+                            """, (schedule_id, day_num, time_minutes, temperature, action))
                 
                 # Explicitly commit the transaction
                 conn.commit()
                 
-                logger.info(f"Created schedule {schedule_id} with {len(zones)} zones and {len(entries)} entries")
+                target_type = "rooms" if rooms else "zones"
+                target_count = len(rooms or zones or [])
+                logger.info(f"Created schedule {schedule_id} with {target_count} {target_type} and {len(entries or [])} entries")
                 result = self.get_schedule(schedule_id)
                 if result is None:
                     logger.error(f"get_schedule returned None immediately after creation for {schedule_id}")
@@ -220,10 +252,24 @@ class OptimizedScheduleStorage:
                 if not schedule_row:
                     return None
                 
-                # Get zones
+                # Get zones (for backward compatibility)
                 zones = [row[0] for row in conn.execute("""
                     SELECT zone_id FROM schedule_zones WHERE schedule_id = ?
                 """, (schedule_id,)).fetchall()]
+                
+                # Get rooms (new room-based approach)
+                rooms = []
+                room_rows = conn.execute("""
+                    SELECT room_name, area_id FROM schedule_rooms WHERE schedule_id = ?
+                """, (schedule_id,)).fetchall()
+                
+                for room_row in room_rows:
+                    room_name = room_row[0]
+                    area_id = room_row[1]
+                    if area_id:
+                        rooms.append(f"{room_name}|{area_id}")
+                    else:
+                        rooms.append(room_name)
                 
                 # Get entries grouped by day
                 entries_rows = conn.execute("""
@@ -258,7 +304,8 @@ class OptimizedScheduleStorage:
                     'id': schedule_row['id'],
                     'name': schedule_row['name'],
                     'active': bool(schedule_row['active']),
-                    'zones': zones,
+                    'zones': zones,  # For backward compatibility
+                    'rooms': rooms,  # New room-based approach
                     'days': days,
                     'periods': periods,
                     'entries': periods,  # For backward compatibility
@@ -320,6 +367,65 @@ class OptimizedScheduleStorage:
                 
         except Exception as e:
             logger.error(f"Error getting schedules for zone {zone_id}: {e}")
+            return []
+    
+    def get_active_schedules_for_room(self, room_name: str) -> List[Dict[str, Any]]:
+        """Get all active schedules for a specific room"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                
+                schedule_ids = [row[0] for row in conn.execute("""
+                    SELECT DISTINCT sr.schedule_id
+                    FROM schedule_rooms sr
+                    JOIN schedules s ON sr.schedule_id = s.id
+                    WHERE sr.room_name = ? AND s.active = 1
+                """, (room_name,)).fetchall()]
+                
+                schedules = []
+                for schedule_id in schedule_ids:
+                    schedule = self.get_schedule(schedule_id)
+                    if schedule:
+                        schedules.append(schedule)
+                
+                return schedules
+                
+        except Exception as e:
+            logger.error(f"Error getting schedules for room {room_name}: {e}")
+            return []
+    
+    def get_zones_for_room_schedules(self, room_name: str, ha_client=None) -> List[str]:
+        """Get all zone entity IDs that belong to a room (for automation creation)"""
+        try:
+            if not ha_client:
+                return []
+            
+            # Get room information from Home Assistant
+            rooms = ha_client.get_rooms_with_tado_devices()
+            
+            # Find the matching room
+            matching_room = None
+            for room in rooms:
+                if room['name'] == room_name:
+                    matching_room = room
+                    break
+            
+            if not matching_room:
+                logger.warning(f"Room '{room_name}' not found in Home Assistant")
+                return []
+            
+            # Extract entity IDs from the room's devices
+            zone_ids = []
+            for device in matching_room.get('devices', []):
+                entity_id = device.get('entity_id')
+                if entity_id:
+                    zone_ids.append(entity_id)
+            
+            logger.info(f"Room '{room_name}' contains {len(zone_ids)} zones: {zone_ids}")
+            return zone_ids
+            
+        except Exception as e:
+            logger.error(f"Error getting zones for room {room_name}: {e}")
             return []
     
     def get_schedule_state_at_time(self, zone_id: str, day_of_week: int, 

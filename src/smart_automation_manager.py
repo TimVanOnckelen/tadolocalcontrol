@@ -20,8 +20,9 @@ class SmartAutomationManager:
             
             for zone_id in affected_zones:
                 try:
-                    # Get all active schedules for this zone
-                    zone_schedules = self.storage.get_active_schedules_for_zone(zone_id)
+                    # Get all active schedules for this zone (both zone-based and room-based)
+                    zone_schedules = self._get_all_schedules_for_zone(zone_id)
+                    logger.info(f"Zone {zone_id} has {len(zone_schedules)} active schedules: {[s.get('name', 'Unnamed') for s in zone_schedules]}")
                     
                     if zone_schedules:
                         # Create consolidated automation for this zone
@@ -44,6 +45,44 @@ class SmartAutomationManager:
         except Exception as e:
             logger.error(f"Error updating zone automations: {e}")
             return False
+    
+    def _get_all_schedules_for_zone(self, zone_id: str) -> List[Dict[str, Any]]:
+        """Get all active schedules that affect a zone (both direct zone assignments and room assignments)"""
+        try:
+            schedules = []
+            
+            # Get direct zone-based schedules
+            zone_schedules = self.storage.get_active_schedules_for_zone(zone_id)
+            schedules.extend(zone_schedules)
+            
+            # Get room-based schedules that include this zone
+            # First, find which room this zone belongs to
+            rooms = self.ha_client.get_rooms_with_tado_devices()
+            zone_rooms = []
+            
+            for room in rooms:
+                for device in room.get('devices', []):
+                    if device.get('entity_id') == zone_id:
+                        zone_rooms.append(room['name'])
+                        break
+            
+            # Get schedules for each room this zone belongs to
+            for room_name in zone_rooms:
+                room_schedules = self.storage.get_active_schedules_for_room(room_name)
+                schedules.extend(room_schedules)
+            
+            # Remove duplicates based on schedule ID
+            unique_schedules = {}
+            for schedule in schedules:
+                schedule_id = schedule.get('id')
+                if schedule_id and schedule_id not in unique_schedules:
+                    unique_schedules[schedule_id] = schedule
+            
+            return list(unique_schedules.values())
+            
+        except Exception as e:
+            logger.error(f"Error getting all schedules for zone {zone_id}: {e}")
+            return []
     
     def _create_zone_consolidated_automation(self, zone_id: str, zone_schedules: List[Dict[str, Any]]) -> bool:
         """Create a single consolidated automation for a zone that handles all its schedules"""
@@ -246,9 +285,15 @@ class SmartAutomationManager:
                 temperature = entry.get('temperature', 20.0)
                 action = 'off' if str(temperature).lower() == 'off' else 'heat'
                 
+                # For 'off' action, don't include temperature (it will be ignored anyway)
+                if action == 'off':
+                    temp_value = 16  # Fallback temperature, won't be used
+                else:
+                    temp_value = float(temperature)
+                
                 template_lines.extend([
                     f"  {{%- if current_time == '{time_str}' -%}}",
-                    f"    {{%- set result = {{'temperature': {temperature if action != 'off' else 16}, 'action': '{action}', 'schedule_name': '{schedule_name}'}} -%}}",
+                    f"    {{%- set result = {{'temperature': {temp_value}, 'action': '{action}', 'schedule_name': '{schedule_name}'}} -%}}",
                     f"  {{%- endif -%}}"
                 ])
             
@@ -274,7 +319,10 @@ class SmartAutomationManager:
                     action = 'off' if str(temperature).lower() == 'off' else 'heat'
                     schedule_name = schedule.get('name', 'Unnamed Schedule')
                     
-                    return f"{{{{ {{'temperature': {temperature}, 'action': '{action}', 'schedule_name': '{schedule_name}'}} }}}}"
+                    # For 'off' action, use a numeric fallback temperature (won't be used)
+                    temp_value = 16 if action == 'off' else float(temperature)
+                    
+                    return f"{{{{ {{'temperature': {temp_value}, 'action': '{action}', 'schedule_name': '{schedule_name}'}} }}}}"
         
         return "{{ {'temperature': 20, 'action': 'heat', 'schedule_name': 'Default'} }}"
     

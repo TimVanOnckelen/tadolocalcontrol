@@ -302,6 +302,102 @@
             color: #f7a600;
             font-size: 16px;
             font-weight: 600;
+            transition: color 0.3s ease, background-color 0.3s ease;
+        }
+        
+        /* Temperature range color optimizations */
+        .temp-off {
+            color: #666 !important;
+            background-color: #f5f5f5 !important;
+            border-radius: 8px;
+            padding: 2px 6px;
+        }
+        
+        .temp-very-cold {
+            color: #1565c0 !important;
+            background-color: #e3f2fd !important;
+            border-radius: 8px;
+            padding: 2px 6px;
+        }
+        
+        .temp-cold {
+            color: #1976d2 !important;
+            background-color: #e8f4f8 !important;
+            border-radius: 8px;
+            padding: 2px 6px;
+        }
+        
+        .temp-normal {
+            color: #2e7d32 !important;
+            background-color: #e8f5e8 !important;
+            border-radius: 8px;
+            padding: 2px 6px;
+        }
+        
+        .temp-warm {
+            color: #f57c00 !important;
+            background-color: #fff3e0 !important;
+            border-radius: 8px;
+            padding: 2px 6px;
+        }
+        
+        .temp-hot {
+            color: #d84315 !important;
+            background-color: #ffebee !important;
+            border-radius: 8px;
+            padding: 2px 6px;
+        }
+        
+        /* Enhanced temperature styling for current and target temp displays */
+        .current-temp, .target-temp {
+            transition: color 0.3s ease, background-color 0.3s ease;
+        }
+        
+        .current-temp.temp-off {
+            background-color: #f5f5f5 !important;
+            color: #999 !important;
+            border-radius: 12px;
+        }
+        
+        .current-temp.temp-very-cold {
+            background-color: #e3f2fd !important;
+            color: #1565c0 !important;
+            border-radius: 12px;
+        }
+        
+        .current-temp.temp-cold {
+            background-color: #e8f4f8 !important;
+            color: #1976d2 !important;
+            border-radius: 12px;
+        }
+        
+        .current-temp.temp-normal {
+            background-color: #e8f5e8 !important;
+            color: #2e7d32 !important;
+            border-radius: 12px;
+        }
+        
+        .current-temp.temp-warm {
+            background-color: #fff3e0 !important;
+            color: #f57c00 !important;
+            border-radius: 12px;
+        }
+        
+        .current-temp.temp-hot {
+            background-color: #ffebee !important;
+            color: #d84315 !important;
+            border-radius: 12px;
+        }
+        
+        .target-temp.temp-off,
+        .target-temp.temp-very-cold,
+        .target-temp.temp-cold,
+        .target-temp.temp-normal,
+        .target-temp.temp-warm,
+        .target-temp.temp-hot {
+            border-radius: 8px;
+            padding: 4px 8px;
+            display: inline-block;
         }
         
         .zone-status {
@@ -2136,7 +2232,7 @@
                                 </div>
                                 <div class="schedule-details">
                                     <span class="schedule-days">${formatDays(schedule.days)}</span>
-                                    <span class="schedule-periods">${schedule.periods.length} period${schedule.periods.length !== 1 ? 's' : ''}</span>
+                                    <span class="schedule-periods">${getScheduleTimeDataLength(schedule)} period${getScheduleTimeDataLength(schedule) !== 1 ? 's' : ''}</span>
                                     <span class="schedule-status ${schedule.active ? 'active' : 'inactive'}">
                                         ${schedule.active ? 'Active' : 'Inactive'}
                                     </span>
@@ -2180,17 +2276,62 @@
             const hours = Array(24).fill(null);
             
             daySchedules.forEach(schedule => {
-                schedule.periods.forEach(period => {
-                    const startHour = parseInt(period.start.split(':')[0]);
-                    const endHour = parseInt(period.end.split(':')[0]);
-                    const startMinute = parseInt(period.start.split(':')[1]);
-                    const endMinute = parseInt(period.end.split(':')[1]);
+                // Handle both 'entries' and 'periods' format for backward compatibility
+                const timeData = schedule.entries || schedule.periods || [];
+                
+                timeData.forEach(item => {
+                    // Handle both formats:
+                    // - entries format: { time: "08:00", temperature: 20 }
+                    // - periods format: { start: "08:00", end: "09:00", temperature: 20 }
+                    
+                    let startTime, endTime, temperature;
+                    
+                    if (item.time) {
+                        // Entries format - each entry is a point in time
+                        startTime = item.time;
+                        endTime = item.time; // Point in time, no duration
+                        temperature = item.temperature;
+                    } else if (item.start && item.end) {
+                        // Periods format - each period has a duration
+                        startTime = item.start;
+                        endTime = item.end;
+                        temperature = item.temperature;
+                    } else {
+                        console.warn('Invalid time data format:', item);
+                        return;
+                    }
+                    
+                    // Parse start and end times safely
+                    const startTimeParts = startTime ? startTime.split(':') : null;
+                    const endTimeParts = endTime ? endTime.split(':') : null;
+                    
+                    if (!startTimeParts || startTimeParts.length < 2) {
+                        console.warn('Invalid start time format:', startTime);
+                        return;
+                    }
+                    
+                    const startHour = parseInt(startTimeParts[0]);
+                    const startMinute = parseInt(startTimeParts[1] || 0);
+                    
+                    let endHour = startHour;
+                    let endMinute = startMinute;
+                    
+                    if (endTimeParts && endTimeParts.length >= 2) {
+                        endHour = parseInt(endTimeParts[0]);
+                        endMinute = parseInt(endTimeParts[1] || 0);
+                    }
+                    
+                    // For entries format (point in time), show for 1 hour
+                    if (item.time && !item.start && !item.end) {
+                        endHour = startHour + 1;
+                        endMinute = startMinute;
+                    }
                     
                     // Fill the hours array with temperature and schedule info
                     for (let h = startHour; h < endHour || (h === endHour && endMinute > 0); h++) {
-                        if (h < 24) {
+                        if (h >= 0 && h < 24) {
                             hours[h] = {
-                                temperature: period.temperature,
+                                temperature: temperature,
                                 scheduleName: schedule.name || 'Unnamed',
                                 active: true
                             };
@@ -2204,7 +2345,7 @@
                      ${hour ? `title="${hour.scheduleName}: ${hour.temperature}°C at ${index}:00"` : `title="Click to add heating period at ${index}:00"`}
                      onclick="${isTimelineEditMode ? `onTimelineHourClick('${day}', ${index})` : ''}"
                      data-day="${day}" data-hour="${index}">
-                    ${hour ? `<span class="temp-indicator">${hour.temperature}°</span>` : ''}
+                    ${hour ? `<span class="temp-indicator">${hour.temperature === 'off' ? 'OFF' : hour.temperature + '°'}</span>` : ''}
                 </div>
             `).join('');
         }
@@ -2220,6 +2361,12 @@
             if (days.length === 2 && days.includes('sat') && days.includes('sun')) return 'Weekends';
             
             return days.map(day => dayMap[day]).join(', ');
+        }
+        
+        function getScheduleTimeDataLength(schedule) {
+            // Handle both 'entries' and 'periods' format for backward compatibility
+            const timeData = schedule.entries || schedule.periods || [];
+            return timeData.length;
         }
         
         // Timeline interaction functions
@@ -2341,6 +2488,31 @@
             }).join('');
         }
         
+        // Get temperature color class based on value
+        function getTemperatureClass(temperature, isOff = false) {
+            if (isOff || temperature === 'off' || temperature === '--') {
+                return 'temp-off';
+            }
+            
+            const temp = parseFloat(temperature);
+            
+            if (isNaN(temp)) {
+                return 'temp-off';
+            }
+            
+            if (temp <= 10) {
+                return 'temp-very-cold';
+            } else if (temp <= 15) {
+                return 'temp-cold';
+            } else if (temp <= 22) {
+                return 'temp-normal';
+            } else if (temp <= 26) {
+                return 'temp-warm';
+            } else {
+                return 'temp-hot';
+            }
+        }
+        
         // Load automations from Home Assistant
         async function loadAutomations() {
             try {
@@ -2395,10 +2567,17 @@
                 const inputs = period.querySelectorAll('input');
                 const temperatureSelect = period.querySelector('select');
                 const tempValue = temperatureSelect.value;
+                
+                // Convert period format to entries format
+                const startTime = inputs[0].value;
+                const endTime = inputs[1].value;
+                const temperature = tempValue === 'off' ? 'off' : parseFloat(tempValue);
+                
+                // For now, we'll create entries at the start time
+                // In the future, we might want to support more complex scheduling
                 return {
-                    start: inputs[0].value,
-                    end: inputs[1].value,
-                    temperature: tempValue === 'off' ? 'off' : parseFloat(tempValue)
+                    time: startTime,
+                    temperature: temperature
                 };
             });
             
@@ -2406,7 +2585,7 @@
                 name: formData.get('schedule-name'),
                 zones: selectedZones,
                 days: selectedDays,
-                periods: periods,
+                entries: periods,  // Send as 'entries' to match backend expectation
                 enabled: true
             };
             

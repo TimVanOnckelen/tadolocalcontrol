@@ -2,6 +2,7 @@ import requests
 import logging
 from typing import Dict, List, Any, Optional
 import json
+import re
 
 # Handle both relative and absolute imports
 try:
@@ -161,6 +162,196 @@ class HomeAssistantClient:
         except Exception as e:
             logger.error(f"Error getting Tado entities: {e}")
             raise
+    
+    def get_areas(self) -> List[Dict[str, Any]]:
+        """Get all areas/rooms from Home Assistant"""
+        try:
+            import requests
+            
+            headers = {
+                'Authorization': f'Bearer {self.token}',
+                'Content-Type': 'application/json'
+            }
+            
+            # Get area registry
+            response = requests.get(f'{self.base_url}/api/config/area_registry', headers=headers, timeout=10)
+            
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.warning(f"Failed to get areas: HTTP {response.status_code}")
+                return []
+                
+        except Exception as e:
+            logger.warning(f"Error getting areas: {e}")
+            return []
+    
+    def get_device_registry(self) -> List[Dict[str, Any]]:
+        """Get device registry from Home Assistant"""
+        try:
+            import requests
+            
+            headers = {
+                'Authorization': f'Bearer {self.token}',
+                'Content-Type': 'application/json'
+            }
+            
+            # Get device registry
+            response = requests.get(f'{self.base_url}/api/config/device_registry', headers=headers, timeout=10)
+            
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.warning(f"Failed to get device registry: HTTP {response.status_code}")
+                return []
+                
+        except Exception as e:
+            logger.warning(f"Error getting device registry: {e}")
+            return []
+    
+    def get_entity_registry(self) -> List[Dict[str, Any]]:
+        """Get entity registry from Home Assistant"""
+        try:
+            import requests
+            
+            headers = {
+                'Authorization': f'Bearer {self.token}',
+                'Content-Type': 'application/json'
+            }
+            
+            # Get entity registry
+            response = requests.get(f'{self.base_url}/api/config/entity_registry', headers=headers, timeout=10)
+            
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.warning(f"Failed to get entity registry: HTTP {response.status_code}")
+                return []
+                
+        except Exception as e:
+            logger.warning(f"Error getting entity registry: {e}")
+            return []
+    
+    def get_rooms_with_tado_devices(self) -> List[Dict[str, Any]]:
+        """Get rooms/areas that contain Tado devices"""
+        try:
+            # Get all registries
+            areas = self.get_areas()
+            devices = self.get_device_registry()
+            entities = self.get_entity_registry()
+            tado_entities = self.get_tado_entities()
+            
+            # Create mappings
+            area_map = {area['area_id']: area for area in areas}
+            device_map = {device['id']: device for device in devices}
+            entity_map = {entity['entity_id']: entity for entity in entities}
+            
+            # Find Tado devices and their areas
+            rooms = {}
+            
+            for tado_entity in tado_entities:
+                entity_id = tado_entity['entity_id']
+                
+                # Get entity from registry
+                registry_entity = entity_map.get(entity_id)
+                if not registry_entity:
+                    # Create a fallback room for entities not in registry
+                    room_name = "Unassigned"
+                    if room_name not in rooms:
+                        rooms[room_name] = {
+                            'area_id': None,
+                            'name': room_name,
+                            'aliases': [],
+                            'devices': []
+                        }
+                    rooms[room_name]['devices'].append(tado_entity)
+                    continue
+                
+                # Get device from registry
+                device_id = registry_entity.get('device_id')
+                device = device_map.get(device_id) if device_id else None
+                
+                # Get area
+                area_id = None
+                if device:
+                    area_id = device.get('area_id')
+                
+                # If no area on device, check entity area
+                if not area_id and registry_entity:
+                    area_id = registry_entity.get('area_id')
+                
+                # Get area info
+                area = area_map.get(area_id) if area_id else None
+                
+                if area:
+                    room_name = area['name']
+                    if room_name not in rooms:
+                        rooms[room_name] = {
+                            'area_id': area['area_id'],
+                            'name': area['name'],
+                            'aliases': area.get('aliases', []),
+                            'devices': []
+                        }
+                    rooms[room_name]['devices'].append(tado_entity)
+                else:
+                    # Fallback: extract room from entity friendly name or entity_id
+                    room_name = self._extract_room_from_entity_name(tado_entity['name'])
+                    if room_name not in rooms:
+                        rooms[room_name] = {
+                            'area_id': None,
+                            'name': room_name,
+                            'aliases': [],
+                            'devices': []
+                        }
+                    rooms[room_name]['devices'].append(tado_entity)
+            
+            # Convert to list and sort
+            room_list = list(rooms.values())
+            room_list.sort(key=lambda x: x['name'])
+            
+            logger.info(f"Found {len(room_list)} rooms with Tado devices")
+            return room_list
+            
+        except Exception as e:
+            logger.error(f"Error getting rooms with Tado devices: {e}")
+            # Fallback: return individual entities as separate "rooms"
+            tado_entities = self.get_tado_entities()
+            fallback_rooms = []
+            for entity in tado_entities:
+                room_name = self._extract_room_from_entity_name(entity['name'])
+                fallback_rooms.append({
+                    'area_id': None,
+                    'name': room_name,
+                    'aliases': [],
+                    'devices': [entity]
+                })
+            return fallback_rooms
+    
+    def _extract_room_from_entity_name(self, entity_name: str) -> str:
+        """Extract room name from entity friendly name"""
+        # Remove common prefixes/suffixes
+        name = entity_name.lower()
+        name = name.replace('tado', '').replace('smart', '').replace('radiator', '').replace('thermostat', '')
+        name = name.replace('_', ' ').strip()
+        
+        # Common room name patterns
+        if 'living' in name or 'lounge' in name:
+            return 'Living Room'
+        elif 'kitchen' in name:
+            return 'Kitchen'
+        elif 'bedroom' in name or 'bed' in name:
+            return 'Bedroom'
+        elif 'bathroom' in name or 'bath' in name:
+            return 'Bathroom'
+        elif 'office' in name or 'study' in name:
+            return 'Office'
+        elif 'dining' in name:
+            return 'Dining Room'
+        elif 'hall' in name or 'entry' in name:
+            return 'Hallway'
+        else:
+            # Use the cleaned name or fallback
+            return name.title() if name else 'Unknown Room'
     
     def get_entity_state(self, entity_id: str) -> Dict[str, Any]:
         """Get current state of a specific entity"""
@@ -333,6 +524,7 @@ class HomeAssistantClient:
             # Prepare schedule data
             name = schedule_data.get('name', 'Unnamed Schedule')
             zones = schedule_data.get('zones', [])
+            rooms = schedule_data.get('rooms', [])
             days = schedule_data.get('days', [])
             
             # Handle both 'entries' and 'periods' for backward compatibility
@@ -343,28 +535,54 @@ class HomeAssistantClient:
                 schedule_id=schedule_id,
                 name=name,
                 zones=zones,
+                rooms=rooms,
                 entries=entries,
                 days=days,
                 active=True,
                 metadata={
                     'created_via': 'api',
-                    'version': '2.0'
+                    'version': '2.0',
+                    'is_room_based': bool(rooms)
                 }
             )
             
-            # Update automations using smart automation manager
-            success = self.automation_manager.update_zone_automations(zones)
+            # Determine which zones need automation updates
+            affected_zones = []
             
-            if not success:
-                # Update schedule to mark automation creation failure
-                self.schedule_storage.update_schedule(
-                    schedule_id, 
-                    active=False, 
-                    metadata={'error': 'Failed to create Home Assistant automations'}
-                )
-                logger.warning(f"Zone automation update failed for schedule {schedule_id}")
+            # Add explicitly specified zones
+            if zones:
+                affected_zones.extend(zones)
+            
+            # Add zones from rooms
+            if rooms:
+                for room_name in rooms:
+                    # Handle room format "room_name|area_id"
+                    if '|' in room_name:
+                        room_name = room_name.split('|')[0]
+                    
+                    room_zones = self.schedule_storage.get_zones_for_room_schedules(room_name, self)
+                    affected_zones.extend(room_zones)
+            
+            # Remove duplicates
+            affected_zones = list(set(affected_zones))
+            
+            # Update automations using smart automation manager
+            if affected_zones:
+                success = self.automation_manager.update_zone_automations(affected_zones)
+                
+                if not success:
+                    # Update schedule to mark automation creation failure
+                    self.schedule_storage.update_schedule(
+                        schedule_id, 
+                        active=False, 
+                        metadata={'error': 'Failed to create Home Assistant automations'}
+                    )
+                    logger.warning(f"Zone automation update failed for schedule {schedule_id}")
+                else:
+                    target_type = "rooms" if rooms else "zones"
+                    logger.info(f"Successfully created {target_type}-based schedule {schedule_id} with consolidated automations for {len(affected_zones)} zones")
             else:
-                logger.info(f"Successfully created schedule {schedule_id} with consolidated automations")
+                logger.warning(f"No zones found for schedule {schedule_id}")
             
             return self.schedule_storage.get_schedule(schedule_id)
                 
@@ -475,8 +693,36 @@ class HomeAssistantClient:
             entries = schedule.get('entries', schedule.get('periods', []))
             
             for i, entry in enumerate(entries):
-                time_str = entry.get('time', entry.get('start', '08:00'))
+                logger.info(f"Processing schedule entry {i}: {entry}")
+                
+                # Extract time more carefully
+                time_str = None
+                if 'time' in entry and entry['time']:
+                    time_str = entry['time']
+                elif 'start' in entry and entry['start']:
+                    time_str = entry['start']
+                else:
+                    logger.warning(f"No valid time found in entry {i}: {entry}, skipping")
+                    continue
+                
                 temperature = entry.get('temperature', 20.0)
+                logger.info(f"Extracted time_str: {time_str}, temperature: {temperature}")
+                
+                # Validate time format
+                if not time_str or ':' not in time_str:
+                    logger.warning(f"Invalid time format '{time_str}' in entry {i}, skipping")
+                    continue
+                
+                # Ensure temperature is properly handled
+                if str(temperature).lower() == 'off':
+                    logger.info(f"Entry {i}: time={time_str}, action=off")
+                else:
+                    try:
+                        temperature = float(temperature)
+                        logger.info(f"Entry {i}: time={time_str}, temperature={temperature}°C")
+                    except (ValueError, TypeError):
+                        logger.warning(f"Invalid temperature value '{temperature}' in entry {i}, using 20.0")
+                        temperature = 20.0
                 
                 automation_id = f'{self.entity_prefix}_zone_{self._get_zone_name(zone_id)}_schedule_{schedule.get("id")}_{i}'
                 
